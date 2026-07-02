@@ -34,7 +34,7 @@ try:
 except (OSError, json.JSONDecodeError):
     CFG = {}
 PASSCODE = str(CFG.get("passcode", "0000"))
-PORT = int(CFG.get("port", 18002))
+PORT = int(CFG.get("port", 8000))
 SUBTITLE = CFG.get("subtitle", "two readers, one book")
 LOGIN_HINT = CFG.get("login_hint", "四位数密码")
 USER_NAME = CFG.get("user_name", "我")
@@ -717,6 +717,34 @@ def render(tpl, **kw):
 
 # ---------------- HTTP ----------------
 
+# 密码尝试限速：同IP 10分钟内错5次 → 封30分钟（4位数密码必须防暴力枚举）
+_fails = {}
+_fails_lock = threading.Lock()
+
+
+def _client_blocked(ip):
+    with _fails_lock:
+        rec = _fails.get(ip)
+        if not rec:
+            return False
+        tries, until = rec
+        if until and time.time() < until:
+            return True
+        if until and time.time() >= until:
+            del _fails[ip]
+        return False
+
+
+def _record_fail(ip):
+    with _fails_lock:
+        tries, until = _fails.get(ip, (0, 0))
+        tries += 1
+        if tries >= 5:
+            _fails[ip] = (0, time.time() + 1800)
+        else:
+            _fails[ip] = (tries, 0)
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -741,8 +769,17 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def authed(self):
+        ip = self.client_address[0]
+        if ip != "127.0.0.1" and _client_blocked(ip):
+            return False
         cookies = self.headers.get("Cookie", "")
-        return f"rk={PASSCODE}" in cookies
+        if f"rk={PASSCODE}" in cookies:
+            return True
+        # 带了错误密码才算一次尝试（无cookie的新访客不算）
+        m = re.search(r"rk=(\d+)", cookies)
+        if m and m.group(1) != PASSCODE:
+            _record_fail(ip)
+        return False
 
     def body(self):
         n = int(self.headers.get("Content-Length", 0) or 0)

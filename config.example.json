@@ -1,6 +1,6 @@
 {
  "passcode": "0000",
- "port": 18002,
+ "port": 8000,
  "subtitle": "你和你的AI",
  "login_hint": "四位数密码",
  "user_name": "我",
