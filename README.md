@@ -1,4 +1,21 @@
-# 📖 共读小屋
+<div align="center">
+
+# 📖 共读小屋 · Reading Nook
+
+**[中文](README.md)** · **[English](README.en.md)**
+
+🌏 Don't see your language? [Open a PR](../../pulls) to add one — all welcome.
+
+![license](https://img.shields.io/github/license/zzyyksl/reading-nook?color=8e7cc3)
+![python](https://img.shields.io/badge/python-3.10%2B-blue)
+![dependencies](https://img.shields.io/badge/dependencies-zero-c96f4a)
+![stars](https://img.shields.io/github/stars/zzyyksl/reading-nook?style=flat&color=e8a0ac)
+
+*阅读，是一个人，与另一个人，一起完成的旅程。*
+
+</div>
+
+---
 
 和你的 AI 一起读书的自托管网页。你在手机上翻页读书、划线写想法（粉色气泡），你的 AI 读完同一章后回批注（蓝色气泡）。书、进度、批注全部存在你自己的服务器上。
 
