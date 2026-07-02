@@ -7,3 +7,5 @@ ds_log.json
 # 个人分享文稿
 共读小屋-小红书分享.txt
 __pycache__/
+# 自定义阅读背景图
+custom_bg.img

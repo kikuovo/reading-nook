@@ -318,14 +318,273 @@ def gen_notes_async(slug):
     threading.Thread(target=work, daemon=True).start()
 
 
+# ---------------- 主题 ----------------
+# 每个主题 = day全量变量 + night差量覆盖。结构类风格（黏土/新拟物/玻璃）靠
+# --radius/--shadow/--cbd/--sblur/--btnsh 等结构变量实现，页面CSS统一消费。
+THEMES = {
+    "puppy": {"label": "🍪 奶油小狗", "day": {
+        "--bg": "#fbf2de", "--card": "#fffdf6", "--ink": "#4a4038", "--sub": "#a5977f",
+        "--accent": "#c94f4f", "--pink": "#ffe9ed", "--pink-line": "#f0a8b8",
+        "--blue": "#e3f0fb", "--blue-line": "#93bce0", "--mark": "#fdeac2",
+        "--pink-ink": "#c25e70", "--blue-ink": "#4a78a8", "--line": "#f0e4cd",
+        "--radius": "18px", "--cbd": "1.5px solid #d8e6f4",
+        "--shadow": "0 2px 8px rgba(147,188,224,.25)"},
+     "night": {
+        "--bg": "#20242e", "--card": "#2a2f3b", "--ink": "#e6e1d4", "--sub": "#8b91a0",
+        "--accent": "#e08a8a", "--pink": "#3d2f37", "--pink-line": "#b87f92",
+        "--blue": "#2a3a4d", "--blue-line": "#7fa8d0", "--mark": "#4a3e26",
+        "--pink-ink": "#e3a3b0", "--blue-ink": "#9cc0e8", "--line": "#3a4150",
+        "--cbd": "1.5px solid #39445a", "--shadow": "0 2px 10px rgba(0,0,0,.4)"}},
+    "matcha": {"label": "🍵 抹茶老铺", "day": {
+        "--bg": "#e9ecd9", "--card": "#f8f9ec", "--ink": "#333f2b", "--sub": "#87927a",
+        "--accent": "#5a7a4c", "--pink": "#f2e8d8", "--pink-line": "#c9a578",
+        "--blue": "#e0ead9", "--blue-line": "#87a578", "--mark": "#e3e8c4",
+        "--pink-ink": "#96703d", "--blue-ink": "#4c6b3d", "--line": "#dde2c6",
+        "--radius": "12px", "--cbd": "1px solid #cdd6b4",
+        "--shadow": "0 1px 4px rgba(90,122,76,.15)"},
+     "night": {
+        "--bg": "#181f15", "--card": "#232c1e", "--ink": "#dde3cd", "--sub": "#8a9680",
+        "--accent": "#a3c088", "--pink": "#33301f", "--pink-line": "#a08a58",
+        "--blue": "#25301f", "--blue-line": "#7d9a68", "--mark": "#39402a",
+        "--pink-ink": "#cdb083", "--blue-ink": "#a8c890", "--line": "#333d2b",
+        "--cbd": "1px solid #37432c", "--shadow": "0 1px 6px rgba(0,0,0,.5)"}},
+    "mucha": {"label": "🌿 慕夏花神", "day": {
+        "--bg": "#f0e9d6", "--card": "#faf5e6", "--ink": "#4b4331", "--sub": "#998c6d",
+        "--accent": "#7c8449", "--pink": "#f4e4d0", "--pink-line": "#cf9d6e",
+        "--blue": "#e6e8d2", "--blue-line": "#9aa46c", "--mark": "#eadfb4",
+        "--pink-ink": "#a06b3a", "--blue-ink": "#6b7440", "--line": "#e0d5b2",
+        "--radius": "10px", "--cbd": "1px solid #cbbd8c",
+        "--shadow": "0 1px 5px rgba(150,130,80,.18)"},
+     "night": {
+        "--bg": "#231f14", "--card": "#2e281a", "--ink": "#e5dcc0", "--sub": "#9a8f70",
+        "--accent": "#c8a45c", "--pink": "#362b1c", "--pink-line": "#b08a54",
+        "--blue": "#2c2e1c", "--blue-line": "#8f9a5c", "--mark": "#403820",
+        "--pink-ink": "#d0aa72", "--blue-ink": "#b2bc7a", "--line": "#3d3620",
+        "--cbd": "1px solid #4c4226", "--shadow": "0 1px 6px rgba(0,0,0,.5)"}},
+    "bwcute": {"label": "🎀 黑白甜", "day": {
+        "--bg": "#f5f5f5", "--card": "#ffffff", "--ink": "#262626", "--sub": "#9a9a9a",
+        "--accent": "#1a1a1a", "--pink": "#efefef", "--pink-line": "#c8c8c8",
+        "--blue": "#e6e6e6", "--blue-line": "#8f8f8f", "--mark": "#e2e2e2",
+        "--pink-ink": "#555555", "--blue-ink": "#333333", "--line": "#e8e8e8",
+        "--radius": "20px", "--cbd": "1.5px solid #262626",
+        "--shadow": "3px 3px 0 rgba(38,38,38,.9)",
+        "--font": "-apple-system,'PingFang SC','Microsoft YaHei',sans-serif"},
+     "night": {
+        "--bg": "#141414", "--card": "#1f1f1f", "--ink": "#ececec", "--sub": "#8a8a8a",
+        "--accent": "#f0f0f0", "--pink": "#2c2c2c", "--pink-line": "#6a6a6a",
+        "--blue": "#262626", "--blue-line": "#909090", "--mark": "#3a3a3a",
+        "--pink-ink": "#c8c8c8", "--blue-ink": "#dcdcdc", "--line": "#333333",
+        "--cbd": "1.5px solid #e8e8e8", "--shadow": "3px 3px 0 rgba(232,232,232,.85)"}},
+    "bluecard": {"label": "🕊 法式蓝笺", "day": {
+        "--bg": "#f6f3ea", "--card": "#fdfcf6", "--ink": "#39466b", "--sub": "#8b96b0",
+        "--accent": "#5a72b0", "--pink": "#edf1fa", "--pink-line": "#aab9de",
+        "--blue": "#e2eaf6", "--blue-line": "#7e97c8", "--mark": "#dce6f5",
+        "--pink-ink": "#5a6ea8", "--blue-ink": "#46609e", "--line": "#e3e2d4",
+        "--radius": "8px", "--cbd": "1px solid #c3cfe6",
+        "--shadow": "0 1px 3px rgba(90,114,176,.15)"},
+     "night": {
+        "--bg": "#131828", "--card": "#1c2336", "--ink": "#d6deee", "--sub": "#7f8aa8",
+        "--accent": "#93aade", "--pink": "#242c44", "--pink-line": "#7688c0",
+        "--blue": "#20293e", "--blue-line": "#6f88c0", "--mark": "#2d3a58",
+        "--pink-ink": "#a8b8e8", "--blue-ink": "#93aade", "--line": "#2a3350",
+        "--cbd": "1px solid #333f60", "--shadow": "0 1px 5px rgba(0,0,0,.5)"}},
+    "clay": {"label": "🍡 黏土", "day": {
+        "--bg": "#efeafa", "--card": "#faf7ff", "--ink": "#4c4460", "--sub": "#a094ba",
+        "--accent": "#d4739a", "--pink": "#fce2ee", "--pink-line": "#eba4c8",
+        "--blue": "#e5dcfa", "--blue-line": "#b3a2e8", "--mark": "#fdedd4",
+        "--pink-ink": "#c05c8a", "--blue-ink": "#7a68b8", "--line": "#eae2f6",
+        "--radius": "24px", "--bradius": "18px",
+        "--shadow": "0 10px 22px rgba(163,140,210,.28),inset 0 -5px 10px rgba(163,140,210,.16),inset 0 4px 8px rgba(255,255,255,.95)",
+        "--btnsh": "0 5px 12px rgba(163,140,210,.35),inset 0 -3px 6px rgba(163,140,210,.25),inset 0 2px 4px rgba(255,255,255,.9)",
+        "--btnsh-a": "0 2px 5px rgba(163,140,210,.3),inset 0 3px 6px rgba(163,140,210,.3)",
+        "--font": "-apple-system,'PingFang SC','Microsoft YaHei',sans-serif"},
+     "night": {
+        "--bg": "#252038", "--card": "#312a48", "--ink": "#e8e2f5", "--sub": "#948aae",
+        "--accent": "#e895b8", "--pink": "#43304a", "--pink-line": "#c8809f",
+        "--blue": "#363050", "--blue-line": "#9a8ad0", "--mark": "#4a3d2b",
+        "--pink-ink": "#eba4c0", "--blue-ink": "#b0a2e0", "--line": "#3d3556",
+        "--shadow": "0 10px 22px rgba(0,0,0,.45),inset 0 -5px 10px rgba(0,0,0,.3),inset 0 4px 8px rgba(255,255,255,.07)",
+        "--btnsh": "0 5px 12px rgba(0,0,0,.4),inset 0 -3px 6px rgba(0,0,0,.3),inset 0 2px 4px rgba(255,255,255,.08)",
+        "--btnsh-a": "0 2px 5px rgba(0,0,0,.4),inset 0 3px 6px rgba(0,0,0,.35)"}},
+    "neu": {"label": "🌫 新拟物", "day": {
+        "--bg": "#e0e5ec", "--card": "#e0e5ec", "--ink": "#44506a", "--sub": "#8e9ab5",
+        "--accent": "#5d7290", "--pink": "#e4e0ea", "--pink-line": "#b0a0b8",
+        "--blue": "#dde4ef", "--blue-line": "#93a8c8", "--mark": "#cfd8e6",
+        "--pink-ink": "#8a7898", "--blue-ink": "#5d7290", "--line": "#cdd4de",
+        "--radius": "18px", "--bradius": "14px",
+        "--shadow": "9px 9px 18px #bec4cf,-9px -9px 18px #ffffff",
+        "--btnsh": "6px 6px 12px #bec4cf,-6px -6px 12px #ffffff",
+        "--btnsh-a": "inset 4px 4px 8px #bec4cf,inset -4px -4px 8px #ffffff",
+        "--font": "-apple-system,'PingFang SC','Microsoft YaHei',sans-serif"},
+     "night": {
+        "--bg": "#2b3038", "--card": "#2b3038", "--ink": "#ccd4e0", "--sub": "#7d8797",
+        "--accent": "#8fa8c8", "--pink": "#2f3038", "--pink-line": "#8a7890",
+        "--blue": "#2b333f", "--blue-line": "#7590b0", "--mark": "#3d4450",
+        "--pink-ink": "#b39ec0", "--blue-ink": "#94b0d0", "--line": "#3a414c",
+        "--shadow": "8px 8px 16px #23272d,-8px -8px 16px #333a43",
+        "--btnsh": "5px 5px 10px #23272d,-5px -5px 10px #333a43",
+        "--btnsh-a": "inset 4px 4px 8px #23272d,inset -4px -4px 8px #333a43"}},
+    "glass": {"label": "🫧 拟态玻璃", "day": {
+        "--bg": "linear-gradient(135deg,#c9d6f5 0%,#e6d3ee 45%,#cde9f2 100%) fixed",
+        "--card": "rgba(255,255,255,.5)", "--ink": "#3b4058", "--sub": "#7d84a0",
+        "--accent": "#7568cc", "--pink": "rgba(255,214,228,.65)",
+        "--pink-line": "rgba(228,130,162,.8)", "--blue": "rgba(205,228,252,.6)",
+        "--blue-line": "rgba(120,160,215,.85)", "--mark": "rgba(255,225,160,.75)",
+        "--pink-ink": "#b05a80", "--blue-ink": "#4a6aa8", "--line": "rgba(255,255,255,.5)",
+        "--radius": "18px", "--cbd": "1px solid rgba(255,255,255,.65)",
+        "--sblur": "blur(14px)", "--shadow": "0 8px 28px rgba(100,110,180,.22)"},
+     "night": {
+        "--bg": "linear-gradient(135deg,#171c34 0%,#2c1e44 50%,#122736 100%) fixed",
+        "--card": "rgba(255,255,255,.09)", "--ink": "#e8e9f5", "--sub": "#9298b5",
+        "--accent": "#a89cf0", "--pink": "rgba(240,140,180,.18)",
+        "--pink-line": "rgba(240,150,185,.55)", "--blue": "rgba(130,180,250,.16)",
+        "--blue-line": "rgba(140,180,245,.55)", "--mark": "rgba(255,210,120,.28)",
+        "--pink-ink": "#f0a8c5", "--blue-ink": "#a5c5f5", "--line": "rgba(255,255,255,.14)",
+        "--cbd": "1px solid rgba(255,255,255,.2)", "--sblur": "blur(14px)",
+        "--shadow": "0 8px 28px rgba(0,0,0,.35)"}},
+}
+
+# 划线/字色可选色板
+PALETTES = {
+    "黑白": ["#111111", "#3d3d3d", "#6e6e6e", "#a3a3a3", "#d4d4d4", "#f5f5f5"],
+    "莫兰迪": ["#b9a7a0", "#c5b7ac", "#a7b5a4", "#98a8b8", "#c0b2c5", "#d4c0a8"],
+    "多巴胺": ["#ff5c8a", "#ff9f43", "#ffd93d", "#1dd1a1", "#54a0ff", "#b980f0"],
+    "薄荷曼波": ["#b8f0d8", "#7fe3c3", "#5ec8e5", "#9bd8f0", "#3aa8a0", "#e0fbf0"],
+}
+
+# 页面公共结构样式：消费主题的结构变量，追加在页面自身CSS之后以获得覆盖权
+EXTRA_CSS = """<style>
+.card,.item,.stat>div,.info,.sheet{border-radius:var(--radius,16px);
+box-shadow:var(--shadow,0 1px 6px rgba(120,90,60,.08));border:var(--cbd,none);
+backdrop-filter:var(--sblur,none);-webkit-backdrop-filter:var(--sblur,none)}
+.sheet{border-radius:var(--radius,16px) var(--radius,16px) 0 0}
+button{transition:transform .15s,box-shadow .15s,filter .2s}
+button:active{transform:scale(.96)}
+.card{transition:transform .2s,box-shadow .2s}
+@media(hover:hover){.card:hover{transform:translateY(-2px)}}
+.modes button,.srow button{box-shadow:var(--btnsh,none);border-radius:var(--bradius,10px)}
+.modes button:active,.srow button:active{box-shadow:var(--btnsh-a,var(--btnsh,none))}
+#rnfab{position:fixed;right:16px;bottom:20px;z-index:40;width:44px;height:44px;
+border-radius:50%;background:var(--card);color:var(--ink);font-size:20px;
+box-shadow:var(--shadow,0 1px 6px rgba(120,90,60,.2));border:var(--cbd,none);
+backdrop-filter:var(--sblur,none);-webkit-backdrop-filter:var(--sblur,none);
+display:flex;align-items:center;justify-content:center}
+#rnmask{position:fixed;inset:0;z-index:41;display:none;background:rgba(0,0,0,.25)}
+#rnset{position:fixed;left:0;right:0;bottom:0;z-index:42;background:var(--card);
+border-radius:var(--radius,18px) var(--radius,18px) 0 0;border:var(--cbd,none);
+backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+box-shadow:0 -6px 24px rgba(0,0,0,.18);padding:16px 16px 26px;max-height:78vh;
+overflow-y:auto;display:none;max-width:640px;margin:0 auto}
+#rnset.on,#rnmask.on{display:block}
+#rnset h3{font-size:16px;margin-bottom:4px}
+.rns{font-size:13px;color:var(--sub);margin:14px 0 6px}
+.rnthg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rnth{border:var(--cbd,1px solid var(--line,#e5dccb));border-radius:12px;padding:8px 10px;
+font-size:14px;cursor:pointer;display:flex;align-items:center;gap:8px;background:var(--bg)}
+.rnth.cur{outline:2px solid var(--accent)}
+.rnth .dots{display:flex;gap:3px;margin-left:auto}
+.rnth .dots i{width:12px;height:12px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.12)}
+.rnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.rnsw{width:26px;height:26px;border-radius:50%;cursor:pointer;border:1px solid rgba(0,0,0,.15)}
+.rnsw.cur{outline:2.5px solid var(--accent);outline-offset:1px}
+.rnpl{font-size:11px;color:var(--sub);width:100%;margin-top:4px}
+.rnbt{padding:8px 14px;font-size:13px;border-radius:10px;background:var(--bg);
+color:var(--ink);border:1px solid var(--line,#e5dccb)}
+.rnbt.cur{background:var(--accent);color:#fff;border-color:var(--accent)}
+.rnclr{width:44px;height:30px;border:1px solid var(--line,#e5dccb);border-radius:8px;
+padding:0;background:none;cursor:pointer}
+</style>"""
+
+# 注入到每个页面：应用主题/夜间/划线色/字色/阅读背景 + 设置按钮与面板
+SETTINGS_SNIPPET = """<script>
+const RNT=__TJSON__,RNPAL=__PJSON__;
+const RNLS=k=>localStorage.getItem(k)||'';
+function rnApply(){
+ let k=RNLS('rn_theme');if(!RNT[k])k='puppy';
+ const night=RNLS('rn_mode')==='night';
+ const r=document.documentElement.style;r.cssText='';
+ const vars=Object.assign({},RNT[k].day,night?RNT[k].night:{});
+ for(const[v,c]of Object.entries(vars))r.setProperty(v,c);
+ if(RNLS('rn_mark'))r.setProperty('--mark',RNLS('rn_mark'));
+ if(RNLS('rn_ink'))r.setProperty('--rink',RNLS('rn_ink'));
+ const rb=RNLS('rn_rbg');
+ if(rb==='white'){r.setProperty('--rbg','#ffffff');if(!RNLS('rn_ink'))r.setProperty('--rink','#333333');}
+ else if(rb==='black'){r.setProperty('--rbg','#0e0e10');if(!RNLS('rn_ink'))r.setProperty('--rink','#cfcfcf');}
+ else if(rb==='paper'){r.setProperty('--rbg','linear-gradient(rgba(120,90,50,.04),rgba(120,90,50,.1)),repeating-linear-gradient(0deg,rgba(120,90,50,.03) 0 1px,transparent 1px 28px),#f7efdc');
+  if(!RNLS('rn_ink'))r.setProperty('--rink','#453b2c');}
+ else if(rb==='custom')r.setProperty('--rbg','url("/bg?v='+RNLS('rn_bgv')+'") center/cover no-repeat fixed');
+}
+rnApply();
+function rnSet(k,v){v?localStorage.setItem(k,v):localStorage.removeItem(k);rnApply();rnPanel();}
+function rnPanel(){
+ const p=document.getElementById('rnset');if(!p)return;
+ const curT=RNT[RNLS('rn_theme')]?RNLS('rn_theme'):'puppy';
+ const night=RNLS('rn_mode')==='night';
+ let h='<h3>设置</h3><div class="rns">主题（'+(night?'夜间':'白天')+'）</div><div class="rnthg">';
+ for(const[k,t]of Object.entries(RNT)){
+  const v=night?Object.assign({},t.day,t.night):t.day;
+  h+='<div class="rnth'+(k===curT?' cur':'')+'" onclick="rnSet(\\'rn_theme\\',\\''+k+'\\')">'+t.label+
+   '<span class="dots"><i style="background:'+v['--bg'].split(' ')[0].replace('linear-gradient(135deg,','').replace(',','')+'"></i>'+
+   '<i style="background:'+v['--accent']+'"></i><i style="background:'+v['--pink-line']+'"></i></span></div>';}
+ h+='</div><div class="rns">白天 / 夜间</div><div class="rnrow">'+
+  '<button class="rnbt'+(night?'':' cur')+'" onclick="rnSet(\\'rn_mode\\',\\'\\')">☀ 白天</button>'+
+  '<button class="rnbt'+(night?' cur':'')+'" onclick="rnSet(\\'rn_mode\\',\\'night\\')">🌙 夜间</button></div>';
+ h+='<div class="rns">划线/批注高亮色</div><div class="rnrow">'+
+  '<button class="rnbt'+(RNLS('rn_mark')?'':' cur')+'" onclick="rnSet(\\'rn_mark\\',\\'\\')">跟随主题</button></div>';
+ for(const[pn,cs]of Object.entries(RNPAL)){
+  h+='<div class="rnrow"><span class="rnpl">'+pn+'</span>'+cs.map(c=>{
+   const val=c+'66';
+   return '<span class="rnsw'+(RNLS('rn_mark')===val?' cur':'')+'" style="background:'+c+'" onclick="rnSet(\\'rn_mark\\',\\''+val+'\\')"></span>';}).join('')+'</div>';}
+ h+='<div class="rnrow"><span class="rnpl">调色盘（自由选色）</span>'+
+  '<input type="color" class="rnclr" value="#f9e3c8" onchange="rnSet(\\'rn_mark\\',this.value+\\'66\\')"></div>';
+ h+='<div class="rns">阅读正文字色</div><div class="rnrow">'+
+  '<button class="rnbt'+(RNLS('rn_ink')?'':' cur')+'" onclick="rnSet(\\'rn_ink\\',\\'\\')">跟随主题</button></div>';
+ for(const[pn,cs]of Object.entries(RNPAL)){
+  h+='<div class="rnrow"><span class="rnpl">'+pn+'</span>'+cs.map(c=>
+   '<span class="rnsw'+(RNLS('rn_ink')===c?' cur':'')+'" style="background:'+c+'" onclick="rnSet(\\'rn_ink\\',\\''+c+'\\')"></span>').join('')+'</div>';}
+ h+='<div class="rnrow"><span class="rnpl">调色盘（自由选色）</span>'+
+  '<input type="color" class="rnclr" value="#3d3630" onchange="rnSet(\\'rn_ink\\',this.value)"></div>';
+ const rb=RNLS('rn_rbg');
+ h+='<div class="rns">阅读页背景</div><div class="rnrow">'+
+  [['','跟随主题'],['white','纯白'],['paper','书页'],['black','纯黑']].map(([v,n])=>
+   '<button class="rnbt'+(rb===v?' cur':'')+'" onclick="rnSet(\\'rn_rbg\\',\\''+v+'\\')">'+n+'</button>').join('')+
+  '<button class="rnbt'+(rb==='custom'?' cur':'')+'" onclick="document.getElementById(\\'rnbgf\\').click()">🖼 上传图片</button>'+
+  '<input type="file" id="rnbgf" accept="image/*" hidden></div>';
+ h+='<div class="rns"></div><button class="rnbt" onclick="rnReset()">恢复全部默认</button>'+
+  '<span id="rnst" style="font-size:12px;color:var(--sub);margin-left:10px"></span>';
+ p.innerHTML=h;
+ const f=document.getElementById('rnbgf');
+ if(f)f.onchange=async e=>{
+  const file=e.target.files[0];if(!file)return;
+  document.getElementById('rnst').textContent='上传中…';
+  const r=await fetch('/api/bg',{method:'POST',body:file}).then(r=>r.json());
+  if(r.ok){localStorage.setItem('rn_bgv',Date.now());rnSet('rn_rbg','custom');}
+  else document.getElementById('rnst').textContent='✗ '+(r.error||'失败');
+ };
+}
+function rnReset(){['rn_theme','rn_mode','rn_mark','rn_ink','rn_rbg'].forEach(k=>localStorage.removeItem(k));rnApply();rnPanel();}
+document.addEventListener('DOMContentLoaded',()=>{
+ if(document.querySelector('.gate'))return;
+ const fab=document.createElement('button');fab.id='rnfab';fab.textContent='⚙';
+ const mask=document.createElement('div');mask.id='rnmask';
+ const panel=document.createElement('div');panel.id='rnset';
+ if(document.getElementById('bot'))fab.style.bottom='64px';
+ fab.onclick=()=>{rnPanel();panel.classList.add('on');mask.classList.add('on');};
+ mask.onclick=()=>{panel.classList.remove('on');mask.classList.remove('on');};
+ document.body.append(fab,mask,panel);
+});
+</script>""".replace("__TJSON__", json.dumps(THEMES, ensure_ascii=False)) \
+            .replace("__PJSON__", json.dumps(PALETTES, ensure_ascii=False))
+
 # ---------------- 页面模板 ----------------
 
 BASE_CSS = """
 :root{--bg:#faf6ef;--card:#fffdf8;--ink:#3d3630;--sub:#9b8f80;--accent:#c96f4a;
---pink:#fdeef0;--pink-line:#e8a0ac;--blue:#e8f1fa;--blue-line:#7fa8d0;--mark:#f9e3c8}
+--pink:#fdeef0;--pink-line:#e8a0ac;--blue:#e8f1fa;--blue-line:#7fa8d0;--mark:#f9e3c8;
+--pink-ink:#b05a68;--blue-ink:#4a6f96;--line:#eee2d4}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{background:var(--bg);color:var(--ink);font-family:'Noto Serif SC',Georgia,serif;
-font-size:17px;line-height:1.9}
+body{background:var(--bg);color:var(--ink);
+font-family:var(--font,'Noto Serif SC',Georgia,serif);font-size:17px;line-height:1.9}
 a{color:var(--accent);text-decoration:none}
 .wrap{max-width:640px;margin:0 auto;padding:16px}
 button{font-family:inherit;cursor:pointer;border:none;border-radius:10px}
@@ -360,7 +619,7 @@ box-shadow:0 1px 6px rgba(120,90,60,.08)}
 .modes{display:flex;gap:10px}
 .modes button{flex:1;padding:12px 6px;font-size:15px}
 .m1{background:var(--mark);color:var(--ink)}
-.m2{background:var(--pink);color:#b05a68;border:1px solid var(--pink-line)}
+.m2{background:var(--pink);color:var(--pink-ink);border:1px solid var(--pink-line)}
 .cont{margin-top:10px;font-size:13px;color:var(--accent)}
 .up{border:2px dashed var(--pink-line);background:none;text-align:center;padding:26px;
 border-radius:16px;color:var(--sub);width:100%;font-size:15px}
@@ -373,7 +632,7 @@ border-radius:16px;color:var(--sub);width:100%;font-size:15px}
 <button class="up" onclick="document.getElementById('f').click()">＋ 传一本新书（txt）</button>
 <div id="st"></div>
 <div style="display:flex;gap:10px;margin-top:16px">
-<button style="flex:1;padding:12px;background:var(--blue);border:1px solid var(--blue-line);color:#4a6f96;font-size:14px" onclick="location.href='/ds'">DeepSeek工作台🖥️</button>
+<button style="flex:1;padding:12px;background:var(--blue);border:1px solid var(--blue-line);color:var(--blue-ink);font-size:14px" onclick="location.href='/ds'">DeepSeek工作台🖥️</button>
 <button style="flex:1;padding:12px;background:var(--mark);color:var(--ink);font-size:14px" onclick="location.href='/gardener'">🌙 记忆园丁</button>
 </div>
 </div><script>
@@ -409,22 +668,22 @@ load();
 READER_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>阅读</title><style>__CSS__
-body{overflow:hidden}
-#top{position:fixed;top:0;left:0;right:0;background:var(--bg);z-index:5;
+body{overflow:hidden;background:var(--rbg,var(--bg))}
+#top{position:fixed;top:0;left:0;right:0;background:var(--rbg,var(--bg));z-index:5;
 display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;color:var(--sub)}
 #top a{font-size:15px}
 #ct{flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #page{position:fixed;top:44px;bottom:52px;left:0;right:0;overflow-y:auto;
-padding:8px 22px 20px;max-width:680px;margin:0 auto}
+padding:8px 22px 20px;max-width:680px;margin:0 auto;color:var(--rink,var(--ink))}
 #page p{text-indent:2em;margin-bottom:.9em}
 mark{background:var(--mark);border-bottom:2px solid var(--accent);padding:1px 0;cursor:pointer}
 mark .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:2px;vertical-align:super}
 mark .du{background:var(--pink-line)}mark .dr{background:var(--blue-line)}
-#bot{position:fixed;bottom:0;left:0;right:0;background:var(--bg);z-index:5;
+#bot{position:fixed;bottom:0;left:0;right:0;background:var(--rbg,var(--bg));z-index:5;
 display:flex;align-items:center;justify-content:space-between;padding:8px 18px;
 font-size:14px;color:var(--sub)}
 #bot button{background:none;font-size:15px;color:var(--accent);padding:6px 14px}
-#tool{position:fixed;display:none;z-index:20;background:var(--ink);border-radius:10px;
+#tool{position:fixed;display:none;z-index:20;background:#2c2c34;border-radius:10px;
 padding:6px;gap:6px}
 #tool button{background:none;color:#fff;font-size:14px;padding:6px 10px}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);
@@ -442,7 +701,7 @@ padding:9px;font-family:inherit;font-size:15px;background:var(--bg);color:var(--
 resize:none;height:70px;outline:none}
 .srow{display:flex;gap:10px;margin-top:8px}
 .srow button{flex:1;padding:10px;font-size:15px}
-.ok{background:var(--pink);color:#b05a68;border:1px solid var(--pink-line)}
+.ok{background:var(--pink);color:var(--pink-ink);border:1px solid var(--pink-line)}
 .cc{background:none;color:var(--sub)}
 .del{background:none;color:var(--sub);font-size:12px;margin-top:4px}
 #mask{position:fixed;inset:0;z-index:25;display:none;background:rgba(0,0,0,.2)}
@@ -451,7 +710,7 @@ resize:none;height:70px;outline:none}
 background:var(--card);box-shadow:-3px 0 16px rgba(0,0,0,.12);padding:14px;
 overflow-y:auto;display:none}
 #alist.on{display:block}
-.ai{border-bottom:1px solid #eee2d4;padding:10px 0;font-size:14px;cursor:pointer}
+.ai{border-bottom:1px solid var(--line);padding:10px 0;font-size:14px;cursor:pointer}
 .ai .q{color:var(--sub);font-size:12px}
 .ai.cur{color:var(--accent);font-weight:600}
 </style></head><body>
@@ -625,8 +884,8 @@ h1{font-size:20px;padding:14px 0;text-align:center}
 .item{background:var(--card);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:14px}
 .item .t{display:flex;justify-content:space-between;color:var(--sub);font-size:12px}
 .tag{display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;margin-right:6px}
-.tg1{background:var(--mark)}.tg2{background:var(--pink);color:#b05a68}
-.tg3{background:var(--blue);color:#4a6f96}.tgx{background:#f3d6d6;color:#a04040}
+.tg1{background:var(--mark)}.tg2{background:var(--pink);color:var(--pink-ink)}
+.tg3{background:var(--blue);color:var(--blue-ink)}.tgx{background:#f3d6d6;color:#a04040}
 .sec{font-size:15px;font-weight:600;margin:18px 0 8px;color:var(--sub)}
 .note-item{cursor:pointer}
 #nview{background:var(--card);border-radius:12px;padding:14px;font-size:14px;
@@ -634,7 +893,7 @@ white-space:pre-wrap;display:none;margin-bottom:10px;border:1px solid var(--blue
 a.back{display:block;padding:12px 0}
 </style></head><body><div class="wrap">
 <a class="back" href="/">〈 书架</a>
-<h1>🤖 DeepSeek 工作台</h1>
+<h1>DeepSeek 工作台</h1>
 <div class="stat" id="stat"></div>
 <div class="sec">📖 剧情笔记（点章节查看）</div>
 <div id="notes"></div>
@@ -684,7 +943,7 @@ GARDENER_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 h1{font-size:20px;padding:14px 0;text-align:center}
 .card{background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:10px;font-size:14px}
 .day{color:var(--accent);font-weight:600;margin-bottom:6px}
-.act{padding:4px 0;border-bottom:1px dashed #eee2d4}
+.act{padding:4px 0;border-bottom:1px dashed var(--line)}
 .act:last-child{border-bottom:none}
 .meta{color:var(--sub);font-size:12px;margin-top:6px}
 a.back{display:block;padding:12px 0}
@@ -707,6 +966,9 @@ fetch('/api/gardener').then(r=>r.json()).then(runs=>{
 
 def render(tpl, **kw):
     html = tpl.replace("__CSS__", BASE_CSS)
+    # 结构样式追加在页面CSS之后（获得覆盖权），设置脚本注入body开头
+    html = html.replace("</head>", EXTRA_CSS + "</head>", 1)
+    html = html.replace("<body>", "<body>" + SETTINGS_SNIPPET, 1)
     # 全局个人化占位符（来自 config.json）
     html = (html.replace("__SUB__", SUBTITLE).replace("__HINT__", LOGIN_HINT)
                 .replace("__UNAME__", USER_NAME).replace("__ANAME__", AI_NAME))
@@ -853,6 +1115,28 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json({"note": f.read()})
             return self.send_json({"note": None}, 404)
 
+        # 自定义阅读背景图
+        if path == "/bg":
+            bg = os.path.join(ROOT, "custom_bg.img")
+            if not os.path.exists(bg):
+                return self.send_json({"error": "not found"}, 404)
+            with open(bg, "rb") as f:
+                data = f.read()
+            ctype = "image/jpeg"
+            if data[:8] == b"\x89PNG\r\n\x1a\n":
+                ctype = "image/png"
+            elif data[:4] == b"GIF8":
+                ctype = "image/gif"
+            elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+                ctype = "image/webp"
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+
         # Rhys 专用：列出所有还没回应的批注
         if path == "/api/pending":
             out = []
@@ -885,6 +1169,16 @@ class Handler(BaseHTTPRequestHandler):
             gen_notes_async(slug)
             return self.send_json({"ok": True, "slug": slug,
                                    "title": meta["title"], "count": len(meta["chapters"])})
+
+        if path == "/api/bg":
+            raw = self.body()
+            if not raw:
+                return self.send_json({"ok": False, "error": "空文件"})
+            if len(raw) > 8 * 1024 * 1024:
+                return self.send_json({"ok": False, "error": "图片超过8MB"})
+            with open(os.path.join(ROOT, "custom_bg.img"), "wb") as f:
+                f.write(raw)
+            return self.send_json({"ok": True})
 
         if path == "/api/progress":
             d = json.loads(self.body() or b"{}")

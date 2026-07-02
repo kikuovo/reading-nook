@@ -29,6 +29,7 @@ A self-hosted web app for reading books together with your AI. You read and high
 - **Smart chapter splitting**: multiple local regex patterns compete; falls back to DeepSeek heading detection (optional); size-based split as last resort
 - **Plot notes**: after upload, DeepSeek pre-reads each chapter and writes a 150–250 word note (optional) so your AI can restore context without re-reading the original text
 - **DeepSeek Workbench 🖥️**: a transparency panel for your AI helper — every call, its task, token usage, duration, and estimated cost
+- **Themes ⚙**: 8 style themes (Cream Puppy / Matcha House / Mucha Floral / B&W Cute / French Blue / Claymorphism / Neumorphism / Glassmorphism), each with day & night modes and matching interactions; highlight and body-text colors from 4 curated palettes (B&W / Morandi / Dopamine / Mint Mambo) plus a free color picker; reading background in white / paper / black / custom image; everything lives in the ⚙ settings panel, stored locally in the browser
 - 4-digit passcode gate, zero third-party dependencies (single-file Python stdlib), mobile-first UI
 
 ## Quick Start
