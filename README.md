@@ -17,7 +17,7 @@
 ## 快速开始
 
 ```bash
-git clone <本仓库>
+git clone <https://github.com/zzyyksl/reading-nook>
 cd reading-nook
 cp config.example.json config.json   # 改成你自己的密码和称呼
 python3 app.py                        # 需要 Python 3.10+
