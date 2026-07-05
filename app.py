@@ -1324,6 +1324,23 @@ class Handler(BaseHTTPRequestHandler):
             save_json(PROGRESS_FILE, prog)
             return self.send_json({"ok": True})
 
+        # AI伴读回应批注（给 Lin's Home 后端的 Echo 用）
+        m = re.match(r"^/api/reply/([^/]+)/(\d+)$", path)
+        if m:
+            slug, idx = m.group(1), int(m.group(2))
+            d = json.loads(self.body() or b"{}")
+            annos = load_json(anno_path(slug, idx), [])
+            for a in annos:
+                if a.get("id") == d.get("id"):
+                    a.setdefault("replies", []).append({
+                        "who": str(d.get("who", "ai"))[:20],
+                        "text": str(d.get("text", ""))[:4000],
+                        "ts": time.strftime("%Y-%m-%d %H:%M"),
+                    })
+                    save_json(anno_path(slug, idx), annos)
+                    return self.send_json({"ok": True})
+            return self.send_json({"error": "annotation not found"}, 404)
+
         m = re.match(r"^/api/annotations/([^/]+)/(\d+)$", path)
         if m:
             slug, idx = m.group(1), int(m.group(2))
