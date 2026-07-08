@@ -981,10 +981,12 @@ async function delAnno(id){
  await reloadAnnos(f.L.ch);
  closeAll();FLOW?renderScroll():render();
 }
-$('tbtn').onclick=()=>{
+$('tbtn').onclick=async()=>{
  const el=$('alist');
+ const annoCounts=await fetch('/api/annolist/'+encodeURIComponent(SLUG)).then(r=>r.json()).catch(()=>({}));
  el.innerHTML='<div style="font-weight:600;margin-bottom:6px">目录</div>'+
-  data.chapters.map((t,i)=>'<div class="ai toc'+(i===CH?' cur':'')+'" data-i="'+i+'">'+esc(t)+'</div>').join('');
+  data.chapters.map((t,i)=>'<div class="ai toc'+(i===CH?' cur':'')+'" data-i="'+i+'">'+esc(t)+
+   (annoCounts[i]?' <span style="color:var(--blue-line)">💬'+annoCounts[i]+'</span>':'')+'</div>').join('');
  el.querySelectorAll('.toc').forEach(d=>{d.onclick=()=>{
   location.href='/read/'+encodeURIComponent(SLUG)+'/'+d.dataset.i+'?mode='+MODE;};});
  el.classList.add('on');$('mask').classList.add('on');
@@ -1215,6 +1217,20 @@ class Handler(BaseHTTPRequestHandler):
             lst = sorted(int(f[:3]) for f in os.listdir(ndir)
                          if f.endswith(".md")) if os.path.isdir(ndir) else []
             return self.send_json({"have": len(lst), "list": lst})
+
+        # 哪几章有批注（给目录侧边栏加小标记，方便快速找到自己写过想法的章节）
+        m = re.match(r"^/api/annolist/([^/]+)$", path)
+        if m:
+            adir = os.path.join(BOOKS_DIR, m.group(1), "annotations")
+            counts = {}
+            if os.path.isdir(adir):
+                for f in os.listdir(adir):
+                    if not f.endswith(".json"):
+                        continue
+                    annos = load_json(os.path.join(adir, f), [])
+                    if annos:
+                        counts[int(f[:3])] = len(annos)
+            return self.send_json(counts)
 
         m = re.match(r"^/read/([^/]+)/(\d+)$", path)
         if m:
