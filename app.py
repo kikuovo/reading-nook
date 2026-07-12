@@ -932,87 +932,224 @@ document.cookie='rk='+pc.value+';path=/;max-age=31536000';location.reload();}});
 HOME_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>共读小屋</title><style>__CSS__
-h1{font-size:22px;padding:18px 0 4px;text-align:center}
-.sub{text-align:center;color:var(--sub);font-size:13px;margin-bottom:20px}
-.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;
-box-shadow:0 1px 6px rgba(120,90,60,.08)}
-.bt{font-size:18px;font-weight:600;margin-bottom:2px}
-.bm{color:var(--sub);font-size:13px;margin-bottom:12px}
-.modes{display:flex;gap:10px}
-.modes button{flex:1;padding:12px 6px;font-size:15px}
-.m1{background:var(--mark);color:var(--ink)}
-.m2{background:var(--pink);color:var(--pink-ink);border:1px solid var(--pink-line)}
-.cont{margin-top:10px;font-size:13px;color:var(--accent)}
-.up{border:2px dashed var(--pink-line);background:none;text-align:center;padding:26px;
-border-radius:16px;color:var(--sub);width:100%;font-size:15px}
-.empty{text-align:center;color:var(--sub);padding:30px 0}
+/* 顶栏：书架 + 右上角加号 */
+.hd{display:flex;align-items:center;justify-content:space-between;padding:14px 4px 0}
+.hd h1{font-size:22px;margin:0;font-weight:600}
+.hd .plus{width:36px;height:36px;border-radius:50%;background:var(--card);color:var(--ink);
+ font-size:22px;line-height:36px;text-align:center;box-shadow:0 1px 6px rgba(120,90,60,.12);cursor:pointer}
+.sub{color:var(--sub);font-size:13px;padding:2px 4px 14px}
+/* Tab 胶囊 */
+.tabs{display:flex;gap:6px;background:var(--card);border-radius:14px;padding:5px;margin-bottom:16px}
+.tab{flex:1;padding:9px 4px;font-size:14px;text-align:center;border-radius:10px;color:var(--sub);cursor:pointer;transition:.2s}
+.tab.on{background:var(--pink);color:var(--pink-ink);font-weight:600}
+.tab .n{font-size:11px;opacity:.65;margin-left:2px}
+/* Hero 卡（继续阅读那张大卡） */
+.hero{display:flex;gap:14px;background:var(--card);border-radius:18px;padding:16px;margin-bottom:14px;
+ box-shadow:0 2px 10px rgba(120,90,60,.08);align-items:stretch}
+.hero .cov{width:74px;flex-shrink:0;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);
+ display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;font-weight:600;
+ font-family:'Noto Serif SC',serif;padding:8px;text-align:center;line-height:1.2}
+.hero .info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
+.hero .tag{color:var(--accent);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.hero .tt{font-size:19px;font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero .au{color:var(--sub);font-size:13px;margin-top:1px}
+.hero .prog{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:12px}
+.hero .pct{color:var(--sub);font-size:12px}
+.hero .open{background:var(--ink);color:var(--card);padding:8px 14px;border-radius:20px;font-size:13px;cursor:pointer;white-space:nowrap}
+.hero .mini{font-size:11px;color:var(--sub);margin-top:6px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+/* 小卡（其它在读 / 读完） */
+.tinylabel{color:var(--sub);font-size:12px;margin:14px 4px 8px}
+.mini-card{display:flex;gap:12px;background:var(--card);border-radius:14px;padding:12px;margin-bottom:10px;
+ box-shadow:0 1px 6px rgba(120,90,60,.06);cursor:pointer;align-items:center}
+.mini-card .cov{width:38px;height:56px;border-radius:4px;flex-shrink:0;display:flex;
+ align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:600;
+ font-family:'Noto Serif SC',serif;text-align:center;padding:4px;line-height:1.1}
+.mini-card .mm{flex:1;min-width:0}
+.mini-card .mtt{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini-card .mp{font-size:12px;color:var(--sub);margin-top:2px}
+/* 底部工作台按钮 */
+.foot{display:flex;gap:10px;margin-top:22px}
+.foot button{flex:1;padding:12px;font-size:13px;border-radius:12px}
+.fb1{background:var(--blue);border:1px solid var(--blue-line);color:var(--blue-ink)}
+.fb2{background:var(--mark);color:var(--ink)}
+/* 空态 */
+.empty{text-align:center;color:var(--sub);padding:40px 20px;font-size:14px;line-height:1.8}
+.empty .big{font-size:34px;opacity:.4;margin-bottom:8px}
+/* 底部 Sheet：添加一本书 */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;opacity:0;pointer-events:none;transition:.2s}
+.mask.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:var(--card);z-index:41;
+ border-radius:22px 22px 0 0;padding:20px 18px 32px;transform:translateY(100%);transition:.25s ease}
+.sheet.on{transform:translateY(0)}
+.sheet h3{font-size:17px;margin-bottom:16px}
+.sheet .row{display:flex;align-items:center;gap:14px;padding:14px;background:var(--bg);
+ border-radius:14px;margin-bottom:10px;cursor:pointer;transition:.15s}
+.sheet .row:active{transform:scale(.98)}
+.sheet .row .ic{width:38px;height:38px;border-radius:10px;background:var(--pink);color:var(--pink-ink);
+ display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.sheet .row .rt{font-size:15px;font-weight:500}
+.sheet .row .rs{font-size:12px;color:var(--sub);margin-top:1px}
+.sheet .row .arr{color:var(--sub);font-size:18px}
 #st{text-align:center;color:var(--accent);font-size:14px;min-height:20px;margin-top:8px}
+/* 粘贴框（沿用） */
+#pasteBox{display:none;margin-top:10px;padding:14px;background:var(--bg);border-radius:14px}
+#pasteBox input,#pasteBox textarea{width:100%;padding:10px;font-size:14px;border:1px solid var(--pink-line);
+ border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit}
+#pasteBox textarea{resize:vertical;margin-top:8px}
+#pasteBox .pbot{display:flex;gap:8px;margin-top:8px}
+#pasteBox .pbot button{flex:1;padding:10px;font-size:14px}
 </style></head><body><div class="wrap">
-<h1>📖 共读小屋</h1><div class="sub">__SUB__</div>
-<div id="books"></div>
-<input type="file" id="f" accept=".txt,.epub,.pdf" hidden>
-<input type="file" id="fmulti" accept=".txt,.html,.htm" multiple hidden>
-<button class="up" onclick="document.getElementById('f').click()">＋ 传一本新书（txt / epub / pdf）</button>
-<div style="display:flex;gap:8px;margin-top:8px">
- <button style="flex:1;padding:12px;background:none;border:1px dashed var(--pink-line);color:var(--sub);font-size:13px;border-radius:14px" onclick="openMulti()">📁 多文件<br><span style="font-size:10px;opacity:.7">每个当一章</span></button>
- <button style="flex:1;padding:12px;background:none;border:1px dashed var(--pink-line);color:var(--sub);font-size:13px;border-radius:14px" onclick="document.getElementById('pasteBox').style.display='block'">✍️ 粘贴文字<br><span style="font-size:10px;opacity:.7">按标题自动切章</span></button>
+<div class="hd"><h1>📖 共读小屋</h1><div class="plus" onclick="openSheet()">＋</div></div>
+<div class="sub">__SUB__</div>
+<div class="tabs">
+ <div class="tab on" id="tab-r" onclick="pickTab('r')">在读<span class="n" id="cn-r"></span></div>
+ <div class="tab" id="tab-d" onclick="pickTab('d')">读完<span class="n" id="cn-d"></span></div>
 </div>
-<div id="pasteBox" style="display:none;margin-top:10px;padding:14px;background:var(--card);border-radius:14px">
- <input id="pasteTitle" placeholder="书名（必填）" style="width:100%;padding:10px;font-size:15px;border:1px solid var(--pink-line);border-radius:8px;background:var(--bg);color:var(--ink);margin-bottom:8px">
- <textarea id="pasteText" placeholder="把整本文字粘进来…" rows="8" style="width:100%;padding:10px;font-size:14px;border:1px solid var(--pink-line);border-radius:8px;background:var(--bg);color:var(--ink);resize:vertical;font-family:inherit"></textarea>
- <div style="display:flex;gap:8px;margin-top:8px">
-  <button style="flex:1;padding:10px;background:none;border:1px solid var(--pink-line);color:var(--sub)" onclick="document.getElementById('pasteBox').style.display='none'">取消</button>
-  <button style="flex:1;padding:10px;background:var(--pink);color:var(--pink-ink);border:1px solid var(--pink-line)" onclick="doPaste()">加入书架</button>
+<div id="books"></div>
+<div id="st"></div>
+<div class="foot">
+ <button class="fb1" onclick="location.href='/ds'">DeepSeek 工作台🖥️</button>
+ <button class="fb2" onclick="location.href='/gardener'">🌙 记忆园丁</button>
+</div>
+</div>
+<!-- 添加书 sheet -->
+<div class="mask" id="mask" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet">
+ <h3>添加一本书</h3>
+ <div class="row" onclick="pickFile('epub')">
+  <div class="ic">📕</div><div style="flex:1"><div class="rt">上传 EPUB</div><div class="rs">从文件中选取 .epub</div></div><div class="arr">›</div>
+ </div>
+ <div class="row" onclick="pickFile('pdf')">
+  <div class="ic">📄</div><div style="flex:1"><div class="rt">上传 PDF</div><div class="rs">从文件中选取 .pdf · 自动转成章节与文字</div></div><div class="arr">›</div>
+ </div>
+ <div class="row" onclick="pickFile('txt')">
+  <div class="ic">📝</div><div style="flex:1"><div class="rt">上传 TXT</div><div class="rs">从文件中选取 .txt · 智能拆章</div></div><div class="arr">›</div>
+ </div>
+ <div class="row" onclick="openMulti()">
+  <div class="ic">📁</div><div style="flex:1"><div class="rt">导入文件夹</div><div class="rs">多选 txt / html，每个文件当一章</div></div><div class="arr">›</div>
+ </div>
+ <div class="row" onclick="togglePaste()">
+  <div class="ic">✍️</div><div style="flex:1"><div class="rt">粘贴文字</div><div class="rs">作为一篇新的文本读物</div></div><div class="arr">›</div>
+ </div>
+ <div id="pasteBox">
+  <input id="pasteTitle" placeholder="书名（必填）">
+  <textarea id="pasteText" placeholder="把整本文字粘进来…" rows="8"></textarea>
+  <div class="pbot">
+   <button style="background:none;border:1px solid var(--pink-line);color:var(--sub)" onclick="document.getElementById('pasteBox').style.display='none'">取消</button>
+   <button style="background:var(--pink);color:var(--pink-ink);border:1px solid var(--pink-line)" onclick="doPaste()">加入书架</button>
+  </div>
  </div>
 </div>
-<div id="st"></div>
-<div style="display:flex;gap:10px;margin-top:16px">
-<button style="flex:1;padding:12px;background:var(--blue);border:1px solid var(--blue-line);color:var(--blue-ink);font-size:14px" onclick="location.href='/ds'">DeepSeek工作台🖥️</button>
-<button style="flex:1;padding:12px;background:var(--mark);color:var(--ink);font-size:14px" onclick="location.href='/gardener'">🌙 记忆园丁</button>
-</div>
-</div><script>
+<input type="file" id="f" hidden>
+<input type="file" id="fmulti" accept=".txt,.html,.htm" multiple hidden>
+<script>
+// 封面配色：稳定 hash 出一个色系，让每本书封面颜色固定但彼此不撞
+const COVERS=[
+ ['#c96f4a','#e8a882'],['#7d5c8c','#a887b8'],['#4a6f96','#7fa8d0'],['#7a8c5f','#a8b98a'],
+ ['#b05a68','#e8a0ac'],['#5c7a8c','#8fadc0'],['#8c6f4a','#c9a87d'],['#5c6f8c','#8fa0c0']];
+function coverFor(title){let h=0;for(const c of (title||'?'))h=(h*31+c.charCodeAt(0))|0;
+ const[a,b]=COVERS[Math.abs(h)%COVERS.length];
+ return`linear-gradient(135deg,${a},${b})`;}
+function firstCh(t){return(t||'?').replace(/[《》「」【】\\[\\]]/g,'').slice(0,4);}
+
+let ALL_BOOKS=[],ALL_PROG={},CUR_TAB='r';
+function pickTab(t){CUR_TAB=t;document.getElementById('tab-r').classList.toggle('on',t==='r');
+ document.getElementById('tab-d').classList.toggle('on',t==='d');render();}
+
+function isDone(b,p){return p&&b.chapters.length>0&&p.ch>=b.chapters.length-1;}
+function progPct(b,p){if(!p||!b.chapters.length)return 0;
+ return Math.min(100,Math.round((p.ch+1)/b.chapters.length*100));}
+
 async function load(){
- const [books,prog]=await Promise.all([
-   fetch('/api/books').then(r=>r.json()),
-   fetch('/api/progress').then(r=>r.json())]);
- const el=document.getElementById('books');
- if(!books.length){el.innerHTML='<div class="empty">书架还空着，传一本书开始吧</div>';return;}
- el.innerHTML=books.map(b=>{
-  const p=prog[b.slug];
-  const cont=p?`<div class="cont" onclick="go('${b.slug}',${p.ch},${p.mode})">▸ 继续读：${b.chapters[p.ch]}（${p.mode===2?'批注模式':'阅读模式'}）</div>`:'';
-  return `<div class="card"><div class="bt">${b.title}</div>
-  <div class="bm">${b.chapters.length} 章 · ${b.created}</div>
-  <div class="modes">
-   <button class="m1" onclick="go('${b.slug}',${p?p.ch:0},1)">功能一 · 纯阅读</button>
-   <button class="m2" onclick="go('${b.slug}',${p?p.ch:0},2)">功能二 · 批注共读</button>
-  </div>${cont}</div>`;}).join('');
+ const[books,prog]=await Promise.all([
+  fetch('/api/books').then(r=>r.json()),
+  fetch('/api/progress').then(r=>r.json())]);
+ ALL_BOOKS=books;ALL_PROG=prog;render();
 }
+function render(){
+ const el=document.getElementById('books');
+ const reading=[],done=[];
+ for(const b of ALL_BOOKS){(isDone(b,ALL_PROG[b.slug])?done:reading).push(b);}
+ document.getElementById('cn-r').textContent=' '+reading.length;
+ document.getElementById('cn-d').textContent=' '+done.length;
+ const list=CUR_TAB==='r'?reading:done;
+ if(!list.length){
+  el.innerHTML='<div class="empty"><div class="big">📖</div>'+
+   (CUR_TAB==='r'?'书架还空着，点右上角＋加一本':'还没有读完的书')+'</div>';return;}
+ // 在读 tab: 最近读过的那本当 hero，其它做小卡
+ if(CUR_TAB==='r'){
+  const sorted=list.slice().sort((a,b)=>{
+   const pa=ALL_PROG[a.slug],pb=ALL_PROG[b.slug];
+   return (pb?new Date(pb.ts||0).getTime():0)-(pa?new Date(pa.ts||0).getTime():0);});
+  const hero=sorted[0],rest=sorted.slice(1);
+  const p=ALL_PROG[hero.slug];const pct=progPct(hero,p);
+  const openCh=p?p.ch:0,openMode=p?.mode||2;
+  el.innerHTML=`<div class="hero">
+   <div class="cov" style="background:${coverFor(hero.title)}">${firstCh(hero.title)}</div>
+   <div class="info">
+    <div><div class="tag">${p?'继续阅读':'开始阅读'}</div>
+    <div class="tt">${hero.title}</div>
+    <div class="au">${hero.chapters.length} 章 · ${hero.created}</div></div>
+    <div>
+     <div class="prog">
+      <div style="flex:1;height:4px;background:var(--line);border-radius:2px;overflow:hidden">
+       <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:2px"></div>
+      </div>
+      <span class="pct">${pct}% · ${(p?p.ch:0)+1}/${hero.chapters.length}</span>
+     </div>
+     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+      <span class="mini" onclick="event.stopPropagation();go('${hero.slug}',${openCh},1)">纯阅读</span>
+      <span class="open" onclick="go('${hero.slug}',${openCh},2)">翻开 →</span>
+     </div>
+    </div>
+   </div>
+  </div>`
+  +(rest.length?`<div class="tinylabel">其它在读 · ${rest.length}</div>`
+   +rest.map(b=>miniCard(b,ALL_PROG[b.slug])).join(''):'');
+ }else{
+  el.innerHTML=list.map(b=>miniCard(b,ALL_PROG[b.slug])).join('');
+ }
+}
+function miniCard(b,p){const pct=progPct(b,p);
+ return`<div class="mini-card" onclick="go('${b.slug}',${p?p.ch:0},2)">
+  <div class="cov" style="background:${coverFor(b.title)}">${firstCh(b.title)}</div>
+  <div class="mm">
+   <div class="mtt">${b.title}</div>
+   <div class="mp">${p?(pct+'% · 第 '+(p.ch+1)+'/'+b.chapters.length+' 章'):(b.chapters.length+' 章 · 未开始')}</div>
+  </div></div>`;}
 function go(s,c,m){location.href='/read/'+encodeURIComponent(s)+'/'+c+'?mode='+m;}
+
+// ── 添加书 sheet ──
+function openSheet(){document.getElementById('mask').classList.add('on');
+ document.getElementById('sheet').classList.add('on');}
+function closeSheet(){document.getElementById('mask').classList.remove('on');
+ document.getElementById('sheet').classList.remove('on');
+ document.getElementById('pasteBox').style.display='none';}
+function togglePaste(){const b=document.getElementById('pasteBox');
+ b.style.display=b.style.display==='block'?'none':'block';
+ if(b.style.display==='block')setTimeout(()=>b.querySelector('input').focus(),50);}
+function pickFile(type){const f=document.getElementById('f');
+ f.accept={epub:'.epub',pdf:'.pdf',txt:'.txt'}[type]||'.txt,.epub,.pdf';
+ f.click();}
+
 document.getElementById('f').addEventListener('change',async e=>{
- const file=e.target.files[0];if(!file)return;
- const st=document.getElementById('st');st.textContent='上传中…';
+ const file=e.target.files[0];e.target.value='';if(!file)return;
+ const st=document.getElementById('st');st.textContent='上传中…';closeSheet();
  const r=await fetch('/api/upload',{method:'POST',
   headers:{'X-Filename':encodeURIComponent(file.name)},body:file});
  const j=await r.json();
  st.textContent=j.ok?('✓ 已入库：'+j.title+'（'+j.count+' 章）'):('✗ '+j.error);
  load();
 });
-function openMulti(){
- const t=prompt('这本书叫什么？（多个文件将合成这本书的章节）');
- if(!t||!t.trim())return;
- window._multiTitle=t.trim();
- document.getElementById('fmulti').click();
-}
+function openMulti(){const t=prompt('这本书叫什么？（多个文件将合成这本书的章节）');
+ if(!t||!t.trim())return;window._multiTitle=t.trim();document.getElementById('fmulti').click();}
 document.getElementById('fmulti').addEventListener('change',async e=>{
- const files=Array.from(e.target.files||[]);
- e.target.value='';
+ const files=Array.from(e.target.files||[]);e.target.value='';
  if(!files.length)return;
- const st=document.getElementById('st');st.textContent='读取 '+files.length+' 个文件…';
+ const st=document.getElementById('st');st.textContent='读取 '+files.length+' 个文件…';closeSheet();
  const entries=[];
- for(const f of files){
-  try{entries.push({name:f.name,text:await f.text()});}
-  catch(err){st.textContent='✗ 读取失败：'+f.name;return;}
- }
+ for(const f of files){try{entries.push({name:f.name,text:await f.text()});}
+  catch(err){st.textContent='✗ 读取失败：'+f.name;return;}}
  st.textContent='入库中…';
  const r=await fetch('/api/upload-multi',{method:'POST',
   headers:{'Content-Type':'application/json'},
@@ -1030,7 +1167,7 @@ async function doPaste(){
   headers:{'X-Filename':encodeURIComponent(t+'.txt')},body:new Blob([c],{type:'text/plain'})});
  const j=await r.json();
  st.textContent=j.ok?('✓ 已入库：'+j.title+'（'+j.count+' 章）'):('✗ '+j.error);
- if(j.ok){document.getElementById('pasteBox').style.display='none';
+ if(j.ok){closeSheet();
   document.getElementById('pasteTitle').value='';document.getElementById('pasteText').value='';}
  load();
 }
