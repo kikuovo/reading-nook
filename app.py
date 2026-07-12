@@ -13,6 +13,8 @@
       annotations/NNN.json  [{id, anchor, note, who, ts, replies:[{who,text,ts}]}]
   /root/reading/progress.json  {slug: {ch, page, mode, ts}}
 """
+import html.parser
+import io
 import json
 import os
 import re
@@ -20,8 +22,10 @@ import threading
 import time
 import urllib.request
 import uuid
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
+from xml.etree import ElementTree as ET
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BOOKS_DIR = os.path.join(ROOT, "books")
@@ -188,11 +192,171 @@ def split_chapters(text: str):
     return _size_split(text)
 
 
+# ── EPUB 解析（纯标准库）─────────────────────────────────────────
+# EPUB 本质就是一个 zip：META-INF/container.xml 里指到 .opf，
+# .opf 的 spine 是"章节该按什么顺序读"的清单，manifest 里 id→href 映射内容 XHTML。
+# 每个 XHTML 抽文本 + 首个 <h1/h2/h3> 当章节标题就够用了（不做插图、不做 CSS）。
+
+
+class _HTMLStrip(html.parser.HTMLParser):
+    """把 XHTML 抽成纯文本：段落/换行标签变换行，脚本/样式内容丢弃"""
+    BLOCK = {"p", "div", "br", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts, self.skip = [], False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self.skip = True
+        elif tag in self.BLOCK:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style"):
+            self.skip = False
+        elif tag in self.BLOCK:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if not self.skip:
+            self.parts.append(data)
+
+
+def _xhtml_to_text(xhtml: str) -> str:
+    p = _HTMLStrip()
+    try:
+        p.feed(xhtml)
+    except Exception:
+        pass  # 有些书 XHTML 不严格，parser 抛错也别整本失败
+    text = "".join(p.parts)
+    # 多空行合并，行首去空白
+    text = "\n".join(line.strip() for line in text.split("\n"))
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+_H_TAG_RE = re.compile(r"<h[1-6][^>]*>(.*?)</h[1-6]>", re.I | re.S)
+
+
+def _first_heading(xhtml: str) -> str:
+    m = _H_TAG_RE.search(xhtml)
+    if not m:
+        return ""
+    # 里面可能还有 <span/> 之类，剥一层
+    p = _HTMLStrip()
+    try:
+        p.feed(m.group(1))
+    except Exception:
+        return ""
+    return "".join(p.parts).strip()[:60]
+
+
+def _strip_ns(el):
+    """XML namespace 太啰嗦，find 写起来痛苦——统一剥掉"""
+    for e in el.iter():
+        if "}" in e.tag:
+            e.tag = e.tag.split("}", 1)[1]
+
+
+def epub_to_chapters(raw: bytes):
+    """从 epub 字节返回 [(title, body), ...]；解析失败返回 None，让上层退回文本流程"""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile:
+        return None
+    names = set(z.namelist())
+    if "META-INF/container.xml" not in names:
+        return None
+    container = ET.fromstring(z.read("META-INF/container.xml"))
+    _strip_ns(container)
+    rootfile = container.find(".//rootfile")
+    if rootfile is None or "full-path" not in rootfile.attrib:
+        return None
+    opf_path = rootfile.attrib["full-path"]
+    opf_dir = os.path.dirname(opf_path)
+
+    opf = ET.fromstring(z.read(opf_path))
+    _strip_ns(opf)
+    manifest = {it.attrib["id"]: it.attrib.get("href", "")
+                for it in opf.findall(".//manifest/item") if "id" in it.attrib}
+    spine = [it.attrib["idref"] for it in opf.findall(".//spine/itemref")
+             if "idref" in it.attrib]
+    if not spine:
+        return None
+
+    def _in_epub(href):
+        return os.path.normpath(os.path.join(opf_dir, href)).replace("\\", "/")
+
+    # 尝试从 nav (epub3) 或 ncx (epub2) 拿章节标题；拿不到用 XHTML 里第一个 h 标签兜底
+    titles_by_href = {}
+    for it in opf.findall(".//manifest/item"):
+        props = it.attrib.get("properties", "")
+        if "nav" in props.split():
+            try:
+                nav_xhtml = z.read(_in_epub(it.attrib["href"])).decode("utf-8", "replace")
+                for m in re.finditer(r'<a[^>]+href="([^"#]+)[^"]*"[^>]*>(.*?)</a>', nav_xhtml, re.I | re.S):
+                    href, label = m.group(1), m.group(2)
+                    p = _HTMLStrip()
+                    try: p.feed(label)
+                    except Exception: pass
+                    label_text = "".join(p.parts).strip()
+                    if label_text:
+                        titles_by_href[href.split("/")[-1]] = label_text[:60]
+            except Exception:
+                pass
+    if not titles_by_href:
+        # epub2 ncx
+        for it in opf.findall(".//manifest/item"):
+            if it.attrib.get("media-type") == "application/x-dtbncx+xml":
+                try:
+                    ncx = ET.fromstring(z.read(_in_epub(it.attrib["href"])))
+                    _strip_ns(ncx)
+                    for np in ncx.findall(".//navPoint"):
+                        label_el = np.find(".//navLabel/text")
+                        content_el = np.find(".//content")
+                        if label_el is not None and content_el is not None:
+                            href = content_el.attrib.get("src", "").split("#")[0]
+                            if href and label_el.text:
+                                titles_by_href[href.split("/")[-1]] = label_el.text.strip()[:60]
+                except Exception:
+                    pass
+                break
+
+    chapters = []
+    for sid in spine:
+        href = manifest.get(sid)
+        if not href:
+            continue
+        content_name = _in_epub(href)
+        if content_name not in names:
+            continue
+        try:
+            xhtml = z.read(content_name).decode("utf-8", "replace")
+        except Exception:
+            continue
+        body = _xhtml_to_text(xhtml)
+        # 过短的多半是封面页/版权页/空白衔接页；20 字够低不会误杀短章
+        if len(body) < 20:
+            continue
+        title = (titles_by_href.get(href.split("/")[-1])
+                 or _first_heading(xhtml)
+                 or f"第 {len(chapters) + 1} 段")
+        chapters.append((title, body))
+    return chapters if chapters else None
+
+
 def save_book(filename: str, raw: bytes):
-    title = re.sub(r"\.(txt|text)$", "", filename, flags=re.I).strip() or "未命名"
+    is_epub = filename.lower().endswith(".epub")
+    title_ext_re = r"\.(txt|text|epub)$"
+    title = re.sub(title_ext_re, "", filename, flags=re.I).strip() or "未命名"
     slug = re.sub(r"[^\w一-鿿-]+", "-", title).strip("-") or f"book-{int(time.time())}"
-    text = decode_text(raw)
-    chapters = split_chapters(text)
+    if is_epub:
+        chapters = epub_to_chapters(raw)
+        if not chapters:
+            raise ValueError("epub 解析失败：文件可能损坏或格式不标准")
+    else:
+        text = decode_text(raw)
+        chapters = split_chapters(text)
     if not chapters:
         raise ValueError("empty book")
     bdir = os.path.join(BOOKS_DIR, slug)
@@ -671,8 +835,17 @@ border-radius:16px;color:var(--sub);width:100%;font-size:15px}
 </style></head><body><div class="wrap">
 <h1>📖 共读小屋</h1><div class="sub">__SUB__</div>
 <div id="books"></div>
-<input type="file" id="f" accept=".txt" hidden>
-<button class="up" onclick="document.getElementById('f').click()">＋ 传一本新书（txt）</button>
+<input type="file" id="f" accept=".txt,.epub" hidden>
+<button class="up" onclick="document.getElementById('f').click()">＋ 传一本新书（txt / epub）</button>
+<button style="width:100%;margin-top:8px;padding:14px;background:none;border:1px dashed var(--pink-line);color:var(--sub);font-size:14px;border-radius:14px" onclick="document.getElementById('pasteBox').style.display='block'">或粘贴文字（章节按空行/标题自动切）</button>
+<div id="pasteBox" style="display:none;margin-top:10px;padding:14px;background:var(--card);border-radius:14px">
+ <input id="pasteTitle" placeholder="书名（必填）" style="width:100%;padding:10px;font-size:15px;border:1px solid var(--pink-line);border-radius:8px;background:var(--bg);color:var(--ink);margin-bottom:8px">
+ <textarea id="pasteText" placeholder="把整本文字粘进来…" rows="8" style="width:100%;padding:10px;font-size:14px;border:1px solid var(--pink-line);border-radius:8px;background:var(--bg);color:var(--ink);resize:vertical;font-family:inherit"></textarea>
+ <div style="display:flex;gap:8px;margin-top:8px">
+  <button style="flex:1;padding:10px;background:none;border:1px solid var(--pink-line);color:var(--sub)" onclick="document.getElementById('pasteBox').style.display='none'">取消</button>
+  <button style="flex:1;padding:10px;background:var(--pink);color:var(--pink-ink);border:1px solid var(--pink-line)" onclick="doPaste()">加入书架</button>
+ </div>
+</div>
 <div id="st"></div>
 <div style="display:flex;gap:10px;margin-top:16px">
 <button style="flex:1;padding:12px;background:var(--blue);border:1px solid var(--blue-line);color:var(--blue-ink);font-size:14px" onclick="location.href='/ds'">DeepSeek工作台🖥️</button>
@@ -705,6 +878,19 @@ document.getElementById('f').addEventListener('change',async e=>{
  st.textContent=j.ok?('✓ 已入库：'+j.title+'（'+j.count+' 章）'):('✗ '+j.error);
  load();
 });
+async function doPaste(){
+ const t=document.getElementById('pasteTitle').value.trim();
+ const c=document.getElementById('pasteText').value;
+ if(!t||!c.trim()){document.getElementById('st').textContent='✗ 书名和内容都要填';return;}
+ const st=document.getElementById('st');st.textContent='入库中…';
+ const r=await fetch('/api/upload',{method:'POST',
+  headers:{'X-Filename':encodeURIComponent(t+'.txt')},body:new Blob([c],{type:'text/plain'})});
+ const j=await r.json();
+ st.textContent=j.ok?('✓ 已入库：'+j.title+'（'+j.count+' 章）'):('✗ '+j.error);
+ if(j.ok){document.getElementById('pasteBox').style.display='none';
+  document.getElementById('pasteTitle').value='';document.getElementById('pasteText').value='';}
+ load();
+}
 load();
 </script></body></html>"""
 
