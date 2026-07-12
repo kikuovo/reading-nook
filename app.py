@@ -27,6 +27,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 from xml.etree import ElementTree as ET
 
+# PDF 是唯一一个不能纯标准库搞的格式（自己写要几千行）。pypdf 是纯 Python 小依赖。
+# 装了就能上传 PDF，没装的话 PDF 上传会返回一条友好错误让用户去 pip install，
+# 其它功能（txt/epub/粘贴/多文件）不受影响
+try:
+    import pypdf
+    _HAS_PYPDF = True
+except ImportError:
+    _HAS_PYPDF = False
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BOOKS_DIR = os.path.join(ROOT, "books")
 PROGRESS_FILE = os.path.join(ROOT, "progress.json")
@@ -345,20 +354,116 @@ def epub_to_chapters(raw: bytes):
     return chapters if chapters else None
 
 
+# ── PDF 解析（唯一破例的第三方依赖：pypdf）─────────────────────────
+# 有 outline（书内目录）就按 outline 切章；没有就把每页拼起来走 split_chapters。
+# outline 用起来微妙——pypdf 内部结构会随版本变，一律 try/except 安全兜底
+def pdf_to_chapters(raw: bytes):
+    if not _HAS_PYPDF:
+        raise ValueError("PDF 需要装 pypdf：在 VPS 上跑 `pip install pypdf`")
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(raw))
+    except Exception as e:
+        raise ValueError(f"PDF 解析失败：{e}")
+
+    # 每一页的文本，缓存下来；后面 outline 切分和整体 fallback 都会用
+    pages = []
+    for p in reader.pages:
+        try:
+            pages.append(p.extract_text() or "")
+        except Exception:
+            pages.append("")
+    if not any(pages):
+        return None
+
+    # 尝试用 outline 切章。pypdf 里 outline 是嵌套列表，Destination 有 .page 引用
+    try:
+        outline = reader.outline
+    except Exception:
+        outline = []
+
+    def _flatten(items):
+        # 只取顶层+一层子（更深的目录切太碎），返回 [(title, page_index)]
+        out = []
+        for it in items:
+            if isinstance(it, list):
+                for sub in it[:8]:  # 一个大章下面别爆炸太多子章
+                    if not isinstance(sub, list) and hasattr(sub, "title"):
+                        try:
+                            page_idx = reader.get_destination_page_number(sub)
+                            out.append((str(sub.title).strip()[:60], page_idx))
+                        except Exception:
+                            continue
+            elif hasattr(it, "title"):
+                try:
+                    page_idx = reader.get_destination_page_number(it)
+                    out.append((str(it.title).strip()[:60], page_idx))
+                except Exception:
+                    continue
+        return out
+
+    marks = _flatten(outline) if outline else []
+    # 去重相邻 page_idx 相同的（一页里两个目录条目没意义）
+    marks = [m for i, m in enumerate(marks)
+             if i == 0 or m[1] != marks[i - 1][1]]
+
+    chapters = []
+    if len(marks) >= 3:
+        # 按 outline 切
+        marks.sort(key=lambda x: x[1])
+        for i, (title, start) in enumerate(marks):
+            end = marks[i + 1][1] if i + 1 < len(marks) else len(pages)
+            body = "\n\n".join(p.strip() for p in pages[start:end] if p.strip()).strip()
+            if len(body) >= 20:
+                chapters.append((title, body))
+        if chapters:
+            return chapters
+
+    # 兜底：整本文字过一遍 split_chapters；再不行按字数切
+    all_text = "\n\n".join(p.strip() for p in pages if p.strip())
+    return split_chapters(all_text) if all_text.strip() else None
+
+
+# ── 多文件导入（多选 txt/html，每个文件当一章）─────────────────────
+def files_to_chapters(entries):
+    """entries: [{name, text}]，name 用来做章节标题（去扩展名），text 是原始内容"""
+    chapters = []
+    for e in entries:
+        name = str(e.get("name") or "").strip()
+        text = str(e.get("text") or "")
+        title = re.sub(r"\.(txt|html?|md)$", "", name, flags=re.I).strip()
+        # html 走标签剥离；其它原样保留
+        if name.lower().endswith((".html", ".htm")):
+            text = _xhtml_to_text(text)
+        text = text.strip()
+        if not text or len(text) < 5:
+            continue
+        chapters.append((title or f"第 {len(chapters) + 1} 段", text))
+    return chapters or None
+
+
 def save_book(filename: str, raw: bytes):
-    is_epub = filename.lower().endswith(".epub")
-    title_ext_re = r"\.(txt|text|epub)$"
+    fn_lower = filename.lower()
+    title_ext_re = r"\.(txt|text|epub|pdf)$"
     title = re.sub(title_ext_re, "", filename, flags=re.I).strip() or "未命名"
     slug = re.sub(r"[^\w一-鿿-]+", "-", title).strip("-") or f"book-{int(time.time())}"
-    if is_epub:
+    if fn_lower.endswith(".epub"):
         chapters = epub_to_chapters(raw)
         if not chapters:
             raise ValueError("epub 解析失败：文件可能损坏或格式不标准")
+    elif fn_lower.endswith(".pdf"):
+        chapters = pdf_to_chapters(raw)
+        if not chapters:
+            raise ValueError("pdf 解析失败：可能是扫描版（图片型）PDF，需要先 OCR")
     else:
         text = decode_text(raw)
         chapters = split_chapters(text)
     if not chapters:
         raise ValueError("empty book")
+    return _persist_book(title, slug, chapters)
+
+
+def _persist_book(title, slug, chapters):
+    """把 [(title, body)] 落盘为一本书。给 save_book 和 save_book_multi 共用"""
     bdir = os.path.join(BOOKS_DIR, slug)
     os.makedirs(os.path.join(bdir, "chapters"), exist_ok=True)
     os.makedirs(os.path.join(bdir, "annotations"), exist_ok=True)
@@ -372,6 +477,16 @@ def save_book(filename: str, raw: bytes):
     }
     save_json(os.path.join(bdir, "meta.json"), meta)
     return slug, meta
+
+
+def save_book_multi(title, entries):
+    """多文件导入入口：title 是用户在弹窗里填的书名，entries=[{name,text}]"""
+    title = (title or "").strip() or "未命名"
+    slug = re.sub(r"[^\w一-鿿-]+", "-", title).strip("-") or f"book-{int(time.time())}"
+    chapters = files_to_chapters(entries)
+    if not chapters:
+        raise ValueError("这些文件里没读到有效内容")
+    return _persist_book(title, slug, chapters)
 
 
 def get_chapter(slug, idx):
@@ -835,9 +950,13 @@ border-radius:16px;color:var(--sub);width:100%;font-size:15px}
 </style></head><body><div class="wrap">
 <h1>📖 共读小屋</h1><div class="sub">__SUB__</div>
 <div id="books"></div>
-<input type="file" id="f" accept=".txt,.epub" hidden>
-<button class="up" onclick="document.getElementById('f').click()">＋ 传一本新书（txt / epub）</button>
-<button style="width:100%;margin-top:8px;padding:14px;background:none;border:1px dashed var(--pink-line);color:var(--sub);font-size:14px;border-radius:14px" onclick="document.getElementById('pasteBox').style.display='block'">或粘贴文字（章节按空行/标题自动切）</button>
+<input type="file" id="f" accept=".txt,.epub,.pdf" hidden>
+<input type="file" id="fmulti" accept=".txt,.html,.htm" multiple hidden>
+<button class="up" onclick="document.getElementById('f').click()">＋ 传一本新书（txt / epub / pdf）</button>
+<div style="display:flex;gap:8px;margin-top:8px">
+ <button style="flex:1;padding:12px;background:none;border:1px dashed var(--pink-line);color:var(--sub);font-size:13px;border-radius:14px" onclick="openMulti()">📁 多文件<br><span style="font-size:10px;opacity:.7">每个当一章</span></button>
+ <button style="flex:1;padding:12px;background:none;border:1px dashed var(--pink-line);color:var(--sub);font-size:13px;border-radius:14px" onclick="document.getElementById('pasteBox').style.display='block'">✍️ 粘贴文字<br><span style="font-size:10px;opacity:.7">按标题自动切章</span></button>
+</div>
 <div id="pasteBox" style="display:none;margin-top:10px;padding:14px;background:var(--card);border-radius:14px">
  <input id="pasteTitle" placeholder="书名（必填）" style="width:100%;padding:10px;font-size:15px;border:1px solid var(--pink-line);border-radius:8px;background:var(--bg);color:var(--ink);margin-bottom:8px">
  <textarea id="pasteText" placeholder="把整本文字粘进来…" rows="8" style="width:100%;padding:10px;font-size:14px;border:1px solid var(--pink-line);border-radius:8px;background:var(--bg);color:var(--ink);resize:vertical;font-family:inherit"></textarea>
@@ -874,6 +993,30 @@ document.getElementById('f').addEventListener('change',async e=>{
  const st=document.getElementById('st');st.textContent='上传中…';
  const r=await fetch('/api/upload',{method:'POST',
   headers:{'X-Filename':encodeURIComponent(file.name)},body:file});
+ const j=await r.json();
+ st.textContent=j.ok?('✓ 已入库：'+j.title+'（'+j.count+' 章）'):('✗ '+j.error);
+ load();
+});
+function openMulti(){
+ const t=prompt('这本书叫什么？（多个文件将合成这本书的章节）');
+ if(!t||!t.trim())return;
+ window._multiTitle=t.trim();
+ document.getElementById('fmulti').click();
+}
+document.getElementById('fmulti').addEventListener('change',async e=>{
+ const files=Array.from(e.target.files||[]);
+ e.target.value='';
+ if(!files.length)return;
+ const st=document.getElementById('st');st.textContent='读取 '+files.length+' 个文件…';
+ const entries=[];
+ for(const f of files){
+  try{entries.push({name:f.name,text:await f.text()});}
+  catch(err){st.textContent='✗ 读取失败：'+f.name;return;}
+ }
+ st.textContent='入库中…';
+ const r=await fetch('/api/upload-multi',{method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({title:window._multiTitle,files:entries})});
  const j=await r.json();
  st.textContent=j.ok?('✓ 已入库：'+j.title+'（'+j.count+' 章）'):('✗ '+j.error);
  load();
@@ -1502,6 +1645,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": False, "error": "空文件"})
             try:
                 slug, meta = save_book(name, raw)
+            except Exception as e:
+                return self.send_json({"ok": False, "error": str(e)})
+            gen_notes_async(slug)
+            return self.send_json({"ok": True, "slug": slug,
+                                   "title": meta["title"], "count": len(meta["chapters"])})
+
+        # 多文件导入：JSON body {title, files:[{name,text}]}——每个文件当一章，按顺序入库
+        if path == "/api/upload-multi":
+            try:
+                payload = json.loads(self.body() or b"{}")
+            except json.JSONDecodeError:
+                return self.send_json({"ok": False, "error": "请求格式错"})
+            title = payload.get("title") or ""
+            files = payload.get("files") or []
+            if not title.strip():
+                return self.send_json({"ok": False, "error": "书名必填"})
+            if not files:
+                return self.send_json({"ok": False, "error": "没选文件"})
+            try:
+                slug, meta = save_book_multi(title, files)
             except Exception as e:
                 return self.send_json({"ok": False, "error": str(e)})
             gen_notes_async(slug)
