@@ -968,10 +968,11 @@ HOME_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 .mini-card .mtt{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mini-card .mp{font-size:12px;color:var(--sub);margin-top:2px}
 /* 底部工作台按钮 */
-.foot{display:flex;gap:10px;margin-top:22px}
-.foot button{flex:1;padding:12px;font-size:13px;border-radius:12px}
+.foot{display:flex;gap:8px;margin-top:22px}
+.foot button{flex:1;padding:12px 6px;font-size:12.5px;border-radius:12px}
 .fb1{background:var(--blue);border:1px solid var(--blue-line);color:var(--blue-ink)}
 .fb2{background:var(--mark);color:var(--ink)}
+.fb3{background:var(--pink);border:1px solid var(--pink-line);color:var(--pink-ink)}
 /* 空态 */
 .empty{text-align:center;color:var(--sub);padding:40px 20px;font-size:14px;line-height:1.8}
 .empty .big{font-size:34px;opacity:.4;margin-bottom:8px}
@@ -1008,7 +1009,8 @@ HOME_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <div id="books"></div>
 <div id="st"></div>
 <div class="foot">
- <button class="fb1" onclick="location.href='/ds'">DeepSeek 工作台🖥️</button>
+ <button class="fb3" onclick="location.href='/bookmarks'">🔖 书签</button>
+ <button class="fb1" onclick="location.href='/ds'">DeepSeek 🖥️</button>
  <button class="fb2" onclick="location.href='/gardener'">🌙 记忆园丁</button>
 </div>
 </div>
@@ -1541,6 +1543,65 @@ async function showNote(slug,i){
 load();
 </script></body></html>"""
 
+BOOKMARKS_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>书签 · 共读小屋</title><style>__CSS__
+.hd{display:flex;align-items:center;padding:14px 4px 0}
+.hd a{color:var(--ink);font-size:20px;padding:4px 10px 4px 0}
+.hd h1{font-size:20px;margin:0;flex:1;text-align:center;padding-right:34px}
+.stat{color:var(--sub);font-size:13px;padding:6px 4px 14px}
+.row{display:flex;gap:12px;align-items:center;background:var(--card);border-radius:14px;
+ padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 6px rgba(120,90,60,.06);cursor:pointer}
+.row .cov{width:44px;height:60px;border-radius:5px;flex-shrink:0;display:flex;
+ align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;
+ font-family:'Noto Serif SC',serif;text-align:center;padding:4px;line-height:1.1;
+ box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.row .mm{flex:1;min-width:0}
+.row .tt{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .au{font-size:12px;color:var(--sub);margin-top:2px}
+.row .st{font-size:12px;color:var(--sub);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap}
+.row .st b{color:var(--accent);font-weight:600}
+.row .arr{color:var(--sub);font-size:20px}
+.empty{text-align:center;color:var(--sub);padding:50px 20px;font-size:14px;line-height:1.8}
+.empty .big{font-size:36px;opacity:.4;margin-bottom:8px}
+</style></head><body><div class="wrap">
+<div class="hd"><a href="/">‹</a><h1>书签</h1></div>
+<div class="stat" id="stat"></div>
+<div id="list"></div>
+</div><script>
+const COVERS=[
+ ['#c96f4a','#e8a882'],['#7d5c8c','#a887b8'],['#4a6f96','#7fa8d0'],['#7a8c5f','#a8b98a'],
+ ['#b05a68','#e8a0ac'],['#5c7a8c','#8fadc0'],['#8c6f4a','#c9a87d'],['#5c6f8c','#8fa0c0']];
+function coverFor(title){let h=0;for(const c of (title||'?'))h=(h*31+c.charCodeAt(0))|0;
+ const[a,b]=COVERS[Math.abs(h)%COVERS.length];
+ return`linear-gradient(135deg,${a},${b})`;}
+function firstCh(t){return(t||'?').replace(/[《》「」【】\\[\\]]/g,'').slice(0,4);}
+function ago(ts){if(!ts)return'';const t=new Date(ts.replace(' ','T')).getTime();
+ if(!t)return ts;const d=(Date.now()-t)/1000;
+ if(d<60)return'刚刚';if(d<3600)return Math.floor(d/60)+' 分钟前';
+ if(d<86400)return Math.floor(d/3600)+' 小时前';if(d<7*86400)return Math.floor(d/86400)+' 天前';
+ if(d<30*86400)return Math.floor(d/(7*86400))+' 周前';
+ return Math.floor(d/(30*86400))+' 个月前';}
+
+(async ()=>{
+ const j=await fetch('/api/annostats').then(r=>r.json());
+ document.getElementById('stat').textContent='共 '+j.total+' 条 · 跨 '+j.books.length+' 本书';
+ const el=document.getElementById('list');
+ if(!j.books.length){el.innerHTML='<div class="empty"><div class="big">🔖</div>还没有批注<br>去挑一本书开始划线吧</div>';return;}
+ el.innerHTML=j.books.map(b=>{
+  const preview=b.latest_text?('· '+b.latest_text.replace(/</g,'&lt;')):'';
+  return`<div class="row" onclick="location.href='/read/'+encodeURIComponent('${b.slug}')+'/'+${b.latest_chapter||0}+'?mode=2'">
+   <div class="cov" style="background:${coverFor(b.title)}">${firstCh(b.title)}</div>
+   <div class="mm">
+    <div class="tt">${b.title}</div>
+    <div class="st"><b>${b.count} 条批注</b> · 最新 ${ago(b.latest_ts)}</div>
+    ${preview?`<div class="st" style="opacity:.7;font-style:italic">${preview}</div>`:''}
+   </div><div class="arr">›</div>
+  </div>`;
+ }).join('');
+})();
+</script></body></html>"""
+
 GARDENER_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>记忆园丁</title><style>__CSS__
@@ -1714,6 +1775,47 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/progress":
             return self.send_json(load_json(PROGRESS_FILE, {}))
+
+        # 跨书批注汇总（书签页用）：每本书聚合 count / latest_ts / 最新那条的预览
+        if path == "/api/annostats":
+            out = []
+            total = 0
+            for b in list_books():
+                adir = os.path.join(BOOKS_DIR, b["slug"], "annotations")
+                if not os.path.isdir(adir):
+                    continue
+                count, latest_ts, latest_text, latest_ch = 0, "", "", None
+                for fn in os.listdir(adir):
+                    if not fn.endswith(".json"):
+                        continue
+                    try:
+                        ch_idx = int(fn[:3])
+                    except ValueError:
+                        continue
+                    for a in load_json(os.path.join(adir, fn), []):
+                        count += 1
+                        # 用户批注本身的 ts + 所有 replies 里最新的 ts 都比一比
+                        ts_candidates = [a.get("ts", "")]
+                        for r in a.get("replies") or []:
+                            ts_candidates.append(r.get("ts", ""))
+                        for ts in ts_candidates:
+                            if ts and ts > latest_ts:
+                                latest_ts = ts
+                                latest_text = a.get("note") or a.get("anchor") or ""
+                                latest_ch = ch_idx
+                if count > 0:
+                    out.append({
+                        "slug": b["slug"], "title": b["title"],
+                        "count": count, "latest_ts": latest_ts,
+                        "latest_text": latest_text[:80], "latest_chapter": latest_ch,
+                    })
+                    total += count
+            out.sort(key=lambda x: x["latest_ts"], reverse=True)
+            return self.send_json({"total": total, "books": out})
+
+        # 书签总览页
+        if path == "/bookmarks":
+            return self.send_html(render(BOOKMARKS_HTML))
 
         m = re.match(r"^/api/chapter/([^/]+)/(\d+)$", path)
         if m:
