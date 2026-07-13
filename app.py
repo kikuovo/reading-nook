@@ -1266,17 +1266,38 @@ async function init(){
  $('ct').textContent=first.title;
  const prog=await fetch('/api/progress').then(r=>r.json());
  const p=prog[SLUG];
+ // 从笔记页点某条批注进来的：URL 带 ?anno=<id>，加载后滚到那个 mark 并短暂高亮
+ const jumpAnno=new URLSearchParams(location.search).get('anno');
  if(FLOW){
   renderScroll();
-  if(p&&p.ch===CH&&pages.length>1){
+  if(jumpAnno){
+   requestAnimationFrame(()=>flashAnno(jumpAnno));
+  }else if(p&&p.ch===CH&&pages.length>1){
    const el=$('page');
    requestAnimationFrame(()=>{el.scrollTop=(p.page/pages.length)*Math.max(0,el.scrollHeight-el.clientHeight);});
   }
   $('page').addEventListener('scroll',onScroll,{passive:true});
  }else{
-  if(p&&p.ch===CH&&p.page<pages.length)cur=p.page;
-  render();
+  if(jumpAnno){
+   // 找出这个 anno 落在第几页——从章节 annos 数据里比对 anchor 定位
+   const a=first.annos.find(x=>x.id===jumpAnno);
+   if(a){for(let i=0;i<pages.length;i++){
+    if(pages[i].some(par=>par.includes(a.anchor))){cur=i;break;}}}
+   render();requestAnimationFrame(()=>flashAnno(jumpAnno));
+  }else{
+   if(p&&p.ch===CH&&p.page<pages.length)cur=p.page;
+   render();
+  }
  }
+}
+function flashAnno(id){
+ const el=document.querySelector('mark[data-id="'+CSS.escape(id)+'"]');
+ if(!el)return;
+ el.scrollIntoView({block:'center',behavior:'smooth'});
+ el.style.transition='background-color .3s';
+ const old=el.style.backgroundColor;
+ el.style.backgroundColor='var(--pink-line)';
+ setTimeout(()=>{el.style.backgroundColor=old;},1200);
 }
 function chHtml(L){
  return '<div class="chb" data-ch="'+L.ch+'">'+
@@ -1543,6 +1564,117 @@ async function showNote(slug,i){
 load();
 </script></body></html>"""
 
+BOOK_NOTES_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>笔记 · 共读小屋</title><style>__CSS__
+.hd{display:flex;align-items:center;padding:14px 4px 0}
+.hd a{color:var(--ink);font-size:22px;padding:4px 12px 4px 0}
+.hd .ct{flex:1;text-align:center;padding-right:34px}
+.hd .ct .t{font-size:17px;font-weight:600}
+.hd .ct .s{font-size:11px;color:var(--sub);margin-top:2px}
+/* 筛选胶囊 sticky */
+.filters{display:flex;gap:6px;padding:6px 4px 12px;
+ position:sticky;top:0;background:var(--bg);z-index:2}
+.filter{padding:6px 14px;border-radius:999px;font-size:12px;
+ background:var(--card);color:var(--sub);border:1px solid var(--line);cursor:pointer}
+.filter.on{background:var(--pink);color:var(--pink-ink);
+ border-color:var(--pink-line);font-weight:500}
+.filter .n{opacity:.6;font-size:10.5px;margin-left:3px}
+/* 章节分割线 */
+.chdiv{font-size:11px;color:var(--sub);padding:14px 4px 8px;letter-spacing:.5px;
+ display:flex;align-items:center;gap:8px}
+.chdiv::before,.chdiv::after{content:"";flex:1;height:1px;background:var(--line)}
+/* 卡片 */
+.note{background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px;
+ box-shadow:0 1px 6px rgba(120,90,60,.08);display:flex;gap:12px;cursor:pointer}
+.note:active{transform:scale(.99);transition:.1s}
+.note .ic{width:26px;height:26px;border-radius:50%;flex-shrink:0;
+ display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.note.mark .ic{background:var(--pink);color:var(--pink-ink)}
+.note.thought .ic{background:var(--mark);color:var(--accent)}
+.note .bd{flex:1;min-width:0}
+.note .anchor{display:inline;background:linear-gradient(transparent 60%,var(--pink) 60%);
+ color:var(--ink);font-size:15px;line-height:1.7;padding:0 2px}
+.note .ttl{font-size:15px;font-weight:500;color:var(--ink);margin-bottom:6px}
+.note .body{font-size:13.5px;color:var(--sub);line-height:1.65}
+.note .meta{margin-top:8px;font-size:11px;color:var(--sub);
+ display:flex;gap:8px;align-items:center}
+.note .rt{background:var(--blue);color:var(--blue-ink);
+ padding:2px 8px;border-radius:10px;font-size:10.5px}
+.empty{text-align:center;color:var(--sub);padding:40px 20px;font-size:14px;line-height:1.8}
+.empty .big{font-size:34px;opacity:.4;margin-bottom:8px}
+</style></head><body><div class="wrap">
+<div class="hd"><a href="/bookmarks">‹</a><div class="ct"><div class="t">笔记</div><div class="s" id="sub"></div></div></div>
+<div class="filters">
+ <div class="filter on" data-f="all" onclick="pick('all')">全部<span class="n" id="n-all"></span></div>
+ <div class="filter" data-f="mark" onclick="pick('mark')">划线<span class="n" id="n-mark"></span></div>
+ <div class="filter" data-f="thought" onclick="pick('thought')">想法<span class="n" id="n-thought"></span></div>
+</div>
+<div id="list"></div>
+</div><script>
+const SLUG=__SLUG__;
+let DATA=null,FILTER='all';
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// 想法标题：拿正文第一句/前 10 字当标题；如果是一句纯短句，标题=正文
+function splitThought(note){
+ const t=note.trim();
+ const m=t.match(/^(.+?[。！？!?~～\\n])/);
+ if(m&&m[1].length<=20&&m[1].length<t.length){
+  return{title:m[1].replace(/[。！？!?~～]$/,''),body:t.slice(m[1].length).trim()};}
+ if(t.length<=18)return{title:t,body:''};
+ return{title:t.slice(0,10),body:t};
+}
+function pick(f){FILTER=f;
+ document.querySelectorAll('.filter').forEach(x=>x.classList.toggle('on',x.dataset.f===f));
+ render();}
+function render(){
+ const el=document.getElementById('list');
+ if(!DATA||!DATA.chapters.length){
+  el.innerHTML='<div class="empty"><div class="big">📝</div>这本书还没有批注<br>去书里挑一段划线试试</div>';return;}
+ let h='';let has=false;
+ for(const c of DATA.chapters){
+  const items=c.items.filter(a=>{
+   const isThought=!!a.note.trim();
+   if(FILTER==='mark')return!isThought;
+   if(FILTER==='thought')return isThought;
+   return true;});
+  if(!items.length)continue;
+  has=true;
+  h+='<div class="chdiv">第 '+(c.ch+1)+' 章 · '+esc(c.title)+'</div>';
+  for(const a of items){
+   const isThought=!!a.note.trim();
+   const link='/read/'+encodeURIComponent(SLUG)+'/'+c.ch+'?mode=2&anno='+encodeURIComponent(a.id);
+   if(isThought){
+    const{title,body}=splitThought(a.note);
+    h+='<div class="note thought" onclick="location.href=\\''+link+'\\'">'+
+     '<div class="ic">💭</div><div class="bd">'+
+     '<div class="ttl">'+esc(title)+'</div>'+
+     (body?'<div class="body">'+esc(body)+'</div>':'')+
+     (a.has_reply?'<div class="meta"><span class="rt">Echo 已回应</span></div>':'')+
+     '</div></div>';
+   }else{
+    h+='<div class="note mark" onclick="location.href=\\''+link+'\\'">'+
+     '<div class="ic">A</div><div class="bd">'+
+     '<span class="anchor">'+esc(a.anchor)+'</span>'+
+     (a.has_reply?'<div class="meta"><span class="rt">Echo 已回应</span></div>':'')+
+     '</div></div>';
+   }
+  }
+ }
+ el.innerHTML=has?h:'<div class="empty" style="padding-top:30px">'+
+  (FILTER==='mark'?'还没有纯划线':'还没有写下想法')+'</div>';
+}
+(async()=>{
+ const j=await fetch('/api/book-annotations/'+encodeURIComponent(SLUG)).then(r=>r.json());
+ DATA=j;
+ document.getElementById('sub').textContent=j.title+' · '+j.total+' 条批注';
+ document.getElementById('n-all').textContent=' '+j.total;
+ document.getElementById('n-mark').textContent=' '+j.marks;
+ document.getElementById('n-thought').textContent=' '+j.thoughts;
+ render();
+})();
+</script></body></html>"""
+
 BOOKMARKS_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>书签 · 共读小屋</title><style>__CSS__
@@ -1590,7 +1722,7 @@ function ago(ts){if(!ts)return'';const t=new Date(ts.replace(' ','T')).getTime()
  if(!j.books.length){el.innerHTML='<div class="empty"><div class="big">🔖</div>还没有批注<br>去挑一本书开始划线吧</div>';return;}
  el.innerHTML=j.books.map(b=>{
   const preview=b.latest_text?('· '+b.latest_text.replace(/</g,'&lt;')):'';
-  return`<div class="row" onclick="location.href='/read/'+encodeURIComponent('${b.slug}')+'/'+${b.latest_chapter||0}+'?mode=2'">
+  return`<div class="row" onclick="location.href='/book/'+encodeURIComponent('${b.slug}')">
    <div class="cov" style="background:${coverFor(b.title)}">${firstCh(b.title)}</div>
    <div class="mm">
     <div class="tt">${b.title}</div>
@@ -1775,6 +1907,59 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/progress":
             return self.send_json(load_json(PROGRESS_FILE, {}))
+
+        # 某本书的完整批注列表（书内笔记页用）：按章节聚合，区分划线/想法/是否有 AI 回应
+        m = re.match(r"^/api/book-annotations/([^/]+)$", path)
+        if m:
+            slug = m.group(1)
+            meta = load_json(os.path.join(BOOKS_DIR, slug, "meta.json"), None)
+            if not meta:
+                return self.send_json({"error": "not found"}, 404)
+            adir = os.path.join(BOOKS_DIR, slug, "annotations")
+            chapters, marks, thoughts = [], 0, 0
+            if os.path.isdir(adir):
+                for fn in sorted(os.listdir(adir)):
+                    if not fn.endswith(".json"):
+                        continue
+                    try:
+                        ch_idx = int(fn[:3])
+                    except ValueError:
+                        continue
+                    if not 0 <= ch_idx < len(meta["chapters"]):
+                        continue
+                    raw = load_json(os.path.join(adir, fn), [])
+                    if not raw:
+                        continue
+                    items = []
+                    for a in raw:
+                        has_note = bool((a.get("note") or "").strip())
+                        if has_note: thoughts += 1
+                        else: marks += 1
+                        items.append({
+                            "id": a.get("id"),
+                            "anchor": a.get("anchor") or "",
+                            "note": a.get("note") or "",
+                            "has_reply": bool(a.get("replies")),
+                            "ts": a.get("ts") or "",
+                        })
+                    chapters.append({
+                        "ch": ch_idx,
+                        "title": meta["chapters"][ch_idx],
+                        "items": items,
+                    })
+            return self.send_json({
+                "title": meta["title"], "slug": slug,
+                "total": marks + thoughts, "marks": marks, "thoughts": thoughts,
+                "chapters": chapters,
+            })
+
+        # 书内笔记页
+        m = re.match(r"^/book/([^/]+)$", path)
+        if m:
+            if not load_json(os.path.join(BOOKS_DIR, m.group(1), "meta.json"), None):
+                return self.send_html("<h3>没找到这本书</h3>", 404)
+            return self.send_html(render(BOOK_NOTES_HTML,
+                SLUG=json.dumps(m.group(1), ensure_ascii=False)))
 
         # 跨书批注汇总（书签页用）：每本书聚合 count / latest_ts / 最新那条的预览
         if path == "/api/annostats":
