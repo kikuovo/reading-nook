@@ -913,7 +913,8 @@ button{font-family:inherit;cursor:pointer;border:none;border-radius:10px}
 """
 
 LOGIN_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{padding-top:env(safe-area-inset-top,0px)}</style>
 <title>共读小屋</title><style>__CSS__
 .gate{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}
 input{font-size:22px;letter-spacing:8px;text-align:center;width:180px;padding:10px;
@@ -930,7 +931,8 @@ document.cookie='rk='+pc.value+';path=/;max-age=31536000';location.reload();}});
 </script></body></html>"""
 
 HOME_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{padding-top:env(safe-area-inset-top,0px)}</style>
 <title>共读小屋</title><style>__CSS__
 /* 顶栏：书架 + 右上角加号 */
 .hd{display:flex;align-items:center;justify-content:space-between;padding:14px 4px 0}
@@ -1177,14 +1179,14 @@ load();
 </script></body></html>"""
 
 READER_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>阅读</title><style>__CSS__
 body{overflow:hidden;background:var(--rbg,var(--bgfull,var(--bg)))}
 #top{position:fixed;top:0;left:0;right:0;background:var(--rbg,var(--bgfull,var(--bg)));z-index:5;
-display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;color:var(--sub)}
+display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;font-size:13px;color:var(--sub)}
 #top a{font-size:15px}
 #ct{flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#page{position:fixed;top:44px;bottom:52px;left:0;right:0;overflow-y:auto;
+#page{position:fixed;top:calc(44px + env(safe-area-inset-top,0px));bottom:52px;left:0;right:0;overflow-y:auto;
 padding:8px 22px 20px;max-width:680px;margin:0 auto;color:var(--rink,var(--ink))}
 #page p{text-indent:2em;margin-bottom:.9em}
 .chdiv{text-align:center;color:var(--sub);font-size:14px;margin:30px 0 20px;letter-spacing:3px}
@@ -1220,7 +1222,7 @@ resize:none;height:70px;outline:none}
 .del{background:none;color:var(--sub);font-size:12px;margin-top:4px}
 #mask{position:fixed;inset:0;z-index:25;display:none;background:rgba(0,0,0,.2)}
 #mask.on{display:block}
-#alist{position:fixed;top:44px;bottom:52px;right:0;width:82%;max-width:340px;z-index:26;
+#alist{position:fixed;top:calc(44px + env(safe-area-inset-top,0px));bottom:52px;right:0;width:82%;max-width:340px;z-index:26;
 background:var(--card);box-shadow:-3px 0 16px rgba(0,0,0,.12);padding:14px;
 overflow-y:auto;display:none}
 #alist.on{display:block}
@@ -1501,7 +1503,8 @@ init();
 
 
 DS_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{padding-top:env(safe-area-inset-top,0px)}</style>
 <title>DeepSeek工作台</title><style>__CSS__
 h1{font-size:20px;padding:14px 0;text-align:center}
 .stat{display:flex;gap:10px;margin-bottom:14px}
@@ -1565,7 +1568,8 @@ load();
 </script></body></html>"""
 
 BOOK_NOTES_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{padding-top:env(safe-area-inset-top,0px)}</style>
 <title>笔记 · 共读小屋</title><style>__CSS__
 .hd{display:flex;align-items:center;padding:14px 4px 0}
 .hd a{color:var(--ink);font-size:22px;padding:4px 12px 4px 0}
@@ -1676,7 +1680,8 @@ function render(){
 </script></body></html>"""
 
 BOOKMARKS_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{padding-top:env(safe-area-inset-top,0px)}</style>
 <title>书签 · 共读小屋</title><style>__CSS__
 .hd{display:flex;align-items:center;padding:14px 4px 0}
 .hd a{color:var(--ink);font-size:20px;padding:4px 10px 4px 0}
@@ -1735,7 +1740,8 @@ function ago(ts){if(!ts)return'';const t=new Date(ts.replace(' ','T')).getTime()
 </script></body></html>"""
 
 GARDENER_HTML = """<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{padding-top:env(safe-area-inset-top,0px)}</style>
 <title>记忆园丁</title><style>__CSS__
 h1{font-size:20px;padding:14px 0;text-align:center}
 .card{background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:10px;font-size:14px}
